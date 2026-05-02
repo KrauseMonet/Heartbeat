@@ -216,24 +216,27 @@ function Setup({uid,onDone}){
 }
 
 // ── WAITING ────────────────────────────────────────────────────────────────
-function Waiting({code,onSignOut}){
-  const [copied,setCopied]=useState(false);
-  const copy=()=>{ navigator.clipboard.writeText(code); setCopied(true); setTimeout(()=>setCopied(false),2200); };
+function Waiting({ code, onSignOut, onLeave }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2200); };
   return (
-    <div style={{padding:"48px 24px",minHeight:"100vh",background:C.bg,textAlign:"center"}}>
-      <div style={{fontSize:56,marginBottom:20,display:"inline-block",animation:"hbFloat 3.2s ease-in-out infinite"}}>♥</div>
-      <h2 style={{fontFamily:"Georgia,serif",fontSize:26,fontWeight:400,fontStyle:"italic",color:C.text,marginBottom:10}}>Room created!</h2>
-      <p style={{color:C.muted,fontSize:15,lineHeight:1.7,marginBottom:32}}>Share this code with your partner. They enter it when creating their account.</p>
-      <div onClick={copy} style={{background:C.accentSoft,border:`2px solid ${C.accentBd}`,borderRadius:20,padding:"28px 24px",marginBottom:24,cursor:"pointer"}}>
-        <div style={{fontSize:11,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12}}>Your room code</div>
-        <div style={{fontSize:48,fontWeight:700,color:C.accent,letterSpacing:"0.2em",fontFamily:"Georgia,serif"}}>{code}</div>
-        <div style={{fontSize:13,color:C.accent,marginTop:12,fontWeight:600}}>{copied?"✓ Copied!":"Tap to copy"}</div>
+    <div style={{ padding: "48px 24px", minHeight: "100vh", background: C.bg, textAlign: "center" }}>
+      <div style={{ fontSize: 56, marginBottom: 20, display: "inline-block", animation: "hbFloat 3.2s ease-in-out infinite" }}>♥</div>
+      <h2 style={{ fontFamily: "Georgia, serif", fontSize: 26, fontWeight: 400, fontStyle: "italic", color: C.text, marginBottom: 10 }}>Room created!</h2>
+      <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, marginBottom: 32 }}>Share this code with your partner so they can join.</p>
+      <div onClick={copy} style={{ background: C.accentSoft, border: `2px solid ${C.accentBd}`, borderRadius: 20, padding: "28px 24px", marginBottom: 24, cursor: "pointer" }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Your room code</div>
+        <div style={{ fontSize: 48, fontWeight: 700, color: C.accent, letterSpacing: "0.2em", fontFamily: "Georgia, serif" }}>{code}</div>
+        <div style={{ fontSize: 13, color: C.accent, marginTop: 12, fontWeight: 600 }}>{copied ? "✓ Copied!" : "Tap to copy"}</div>
       </div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,color:C.muted,fontSize:14,marginBottom:40}}>
-        <div style={{display:"inline-block",animation:"hbSpin 2s linear infinite"}}>✦</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: C.muted, fontSize: 14, marginBottom: 40 }}>
+        <div style={{ display: "inline-block", animation: "hbSpin 2s linear infinite" }}>✦</div>
         Waiting for your partner to join...
       </div>
-      <button onClick={onSignOut} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:C.muted,fontFamily:"inherit"}}>Sign out</button>
+      <button onClick={onLeave} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 20px", cursor: "pointer", fontSize: 13, color: C.muted, fontFamily: "inherit", marginBottom: 12, display: "block", width: "100%" }}>
+        Join a different room instead →
+      </button>
+      <button onClick={onSignOut} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: C.muted, fontFamily: "inherit" }}>Sign out</button>
     </div>
   );
 }
@@ -651,8 +654,17 @@ export default function App() {
 
   if (appState === "login")   return <div style={{ background:C.bg, minHeight:"100vh" }}><style>{ANIMS}</style><Login onLogin={u => { setUser(u); setAppState("setup"); }}/></div>;
   if (appState === "setup")   return <div style={{ background:C.bg, minHeight:"100vh" }}><style>{ANIMS}</style><Setup uid={user?.uid} onDone={(rid, uk) => { setRoomId(rid); setUserKey(uk); }}/></div>;
-  if (appState === "waiting") return <div style={{ background:C.bg, minHeight:"100vh" }}><style>{ANIMS}</style><Waiting code={roomId} onSignOut={signOut}/></div>;
-
+if (appState === "waiting") return (
+  <div style={{ background: C.bg, minHeight: "100vh" }}>
+    <style>{ANIMS}</style>
+    <Waiting code={roomId} onSignOut={signOut} onLeave={async () => {
+      await setDoc(doc(db, "users", user.uid), { name: "", roomId: null, userKey: null });
+      await updateDoc(doc(db, "rooms", roomId), { "users.A": null });
+      setRoomId(null); setUserKey(null); setRoomData(null);
+      setAppState("setup");
+    }} />
+  </div>
+);
   return (
     <div style={{ background:C.bg, minHeight:"100vh", fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif", fontSize:16, color:C.text }}>
       <style>{ANIMS}</style>
