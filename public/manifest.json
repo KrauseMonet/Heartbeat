@@ -1,0 +1,23 @@
+{
+  "name": "Heartbeat",
+  "short_name": "Heartbeat",
+  "description": "Close the distance. Feel each other's presence.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFF6F3",
+  "theme_color": "#D4526A",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/images/hero.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}
