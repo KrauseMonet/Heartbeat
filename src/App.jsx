@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from "firebase/firestore";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as fbSignOut, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as fbSignOut, GoogleAuthProvider, signInWithPopup, deleteUser } from "firebase/auth";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { Heart, GameController, Leaf, UserCircle, Bell, ArrowLeft, Fire, Camera, PencilSimple, CheckCircle, Plus, X, CaretRight, Heartbeat, Envelope, Jar, ListChecks, HandsPraying, Scales, MaskHappy, HandPointing, ChartBar, ChatTeardrop, FlowerLotus, Sparkle, HouseSimple, Gear, SignOut, CalendarBlank, MapPin, Clock, Star, Shuffle, ArrowRight } from "@phosphor-icons/react";
 
 // ── FIREBASE ───────────────────────────────────────────────────────────────
@@ -10,11 +11,45 @@ const firebaseConfig = {
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId:  import.meta.env.VITE_FIREBASE_PROJECT_ID,
   appId:      import.meta.env.VITE_FIREBASE_APP_ID,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
 };
 const fbApp = initializeApp(firebaseConfig);
 const db    = getFirestore(fbApp);
 const auth  = getAuth(fbApp);
 const googleProvider = new GoogleAuthProvider();
+const messaging = getMessaging(fbApp);
+
+async function requestNotifPermission(uid) {
+  try {
+    if (!("Notification" in window)) return;
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return;
+    const token = await getToken(messaging, {
+      vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+    });
+    if (token) await updateDoc(doc(db,"users",uid), { fcmToken:token });
+  } catch(e) { console.error("Notif setup failed:", e); }
+}
+
+async function sendPushToPartner(partnerUid, title, body) {
+  try {
+    const snap = await getDoc(doc(db,"users",partnerUid));
+    const token = snap.data()?.fcmToken;
+    if (!token) return;
+    await fetch("https://fcm.googleapis.com/fcm/send", {
+      method:"POST",
+      headers:{
+        "Authorization":`key=${import.meta.env.VITE_FCM_SERVER_KEY}`,
+        "Content-Type":"application/json",
+      },
+      body: JSON.stringify({
+        to: token,
+        notification:{ title, body, icon:"/images/hero.jpg" },
+        webpush:{ notification:{ title, body, icon:"/images/hero.jpg", vibrate:[200,100,200] } },
+      }),
+    });
+  } catch(e) { console.error("Push failed:", e); }
+}
 
 // ── CLAUDE ─────────────────────────────────────────────────────────────────
 async function callClaude(system, msg) {
@@ -504,12 +539,11 @@ function HomeTab({me,partner,myUser,partnerUser,roomData,roomId,userKey,update,a
     if(from!==userKey&&Date.now()-ts<8000){ setPartnerMsg(true); setTimeout(()=>setPartnerMsg(false),5000); }
   },[roomData?.lastHeartbeat?.ts]);
 
-  const sendHeart=async()=>{
-    setMyBeating(true); setTimeout(()=>setMyBeating(false),600);
-    await update({lastHeartbeat:{from:userKey,ts:Date.now()}});
-    await addN("heartbeat",`${me?.name} sent you a heartbeat`);
-  };
-
+const sendHeart=async()=>{
+  setMyBeating(true); setTimeout(()=>setMyBeating(false),600);
+  await update({lastHeartbeat:{from:userKey,ts:Date.now()}});
+  await addN("heartbeat",`${me?.name} sent you a heartbeat ♥`);
+};
   const setMood=async emoji=>{
     await update({[`users.${userKey}.mood`]:emoji});
     await addN("mood",`${me?.name} is feeling ${emoji}`);
@@ -673,24 +707,23 @@ function HomeTab({me,partner,myUser,partnerUser,roomData,roomId,userKey,update,a
       </div>
 
       {/* ── FLOATING HEART CTA ── */}
-      <div style={{position:"fixed",bottom:100,right:20,zIndex:15,display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
-        {partnerMsg&&(
-          <div className="fade-rise" style={{background:"rgba(255,255,255,0.92)",borderRadius:20,padding:"8px 14px",fontSize:12,color:C.rose,fontFamily:LT,fontWeight:600,boxShadow:SHADOWS.lg,backdropFilter:"blur(8px)",whiteSpace:"nowrap",border:`1px solid ${C.roseBd}`}}>
-            {partner?.name} ♥
-          </div>
-        )}
-        <button onClick={sendHeart} className={myBeating?"hb-beat":partnerMsg?"hb-fast":"heart-float"} style={{
-          width:60,height:60,borderRadius:"50%",border:"none",
-          background:partnerMsg?C.gradGold:C.gradRose,
-          cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
-          boxShadow:partnerMsg?`0 8px 28px rgba(212,146,42,0.5)`:SHADOWS.xl,
-          transition:"background 0.4s",position:"relative"
-        }}>
-          <div style={{position:"absolute",inset:-8,borderRadius:"50%",border:`2px solid ${partnerMsg?"rgba(212,146,42,0.3)":"rgba(212,82,106,0.25)"}`,animation:"hbRing1 2.8s ease-out infinite"}}/>
-          <Heart size={28} color="#fff" weight="fill"/>
-        </button>
-      </div>
-
+<div style={{position:"fixed",bottom:110,right:16,zIndex:15,display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+  {partnerMsg&&(
+    <div className="fade-rise" style={{background:"rgba(255,255,255,0.96)",borderRadius:20,padding:"9px 15px",fontSize:11,color:C.rose,fontFamily:LT,fontWeight:700,boxShadow:SHADOWS.lg,backdropFilter:"blur(10px)",whiteSpace:"nowrap",border:`1px solid ${C.roseBd}`,textAlign:"center",lineHeight:1.5}}>
+      {partner?.name} is thinking<br/>of you ♥
+    </div>
+  )}
+  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:7}}>
+    <button onClick={sendHeart} className={myBeating?"hb-beat":partnerMsg?"hb-fast":"heart-float"} style={{width:76,height:76,borderRadius:"50%",border:"none",background:partnerMsg?C.gradGold:C.gradRose,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:partnerMsg?`0 10px 32px rgba(212,146,42,0.55)`:SHADOWS.xl,transition:"background 0.5s,box-shadow 0.5s",position:"relative",flexShrink:0}}>
+      <div style={{position:"absolute",inset:-12,borderRadius:"50%",border:`2px solid ${partnerMsg?"rgba(212,146,42,0.40)":"rgba(212,82,106,0.32)"}`,animation:"hbRing1 2.6s ease-out infinite",pointerEvents:"none"}}/>
+      <div style={{position:"absolute",inset:-26,borderRadius:"50%",border:`1.5px solid ${partnerMsg?"rgba(212,146,42,0.20)":"rgba(212,82,106,0.16)"}`,animation:"hbRing2 2.6s ease-out infinite 0.7s",pointerEvents:"none"}}/>
+      <Heart size={34} color="#fff" weight="fill"/>
+    </button>
+    <div style={{background:"rgba(255,255,255,0.92)",backdropFilter:"blur(8px)",borderRadius:13,padding:"5px 13px",fontSize:11,fontWeight:700,color:partnerMsg?C.gold:C.rose,fontFamily:LT,boxShadow:SHADOWS.sm,border:`1px solid ${partnerMsg?C.goldBd:C.roseBd}`,whiteSpace:"nowrap",letterSpacing:"0.02em"}}>
+      {partnerMsg?`${partner?.name} ♥`:"Send a heartbeat"}
+    </div>
+  </div>
+</div>
     </div>
   );
 }
@@ -857,7 +890,102 @@ function UsTab({me,partner,userKey,roomData,update,addN,go}){
 // ══════════════════════════════════════════════════════════════════
 // PROFILE TAB — blurred hero, spacious, minimal
 // ══════════════════════════════════════════════════════════════════
-function ProfileTab({me,partner,myUser,partnerUser,uid,userKey,roomData,update,onSignOut}){
+function DeleteAccountButton({uid, roomId, userKey, roomData, onSignOut}){
+  const [step, setStep] = useState("idle"); // idle | confirm | deleting | done
+  const pk = userKey === "A" ? "B" : "A";
+
+  const handleDelete = async () => {
+    setStep("deleting");
+    try {
+      // 1 — Remove user from the room
+      if (roomId) {
+        const partnerExists = roomData?.users?.[pk]?.uid;
+        if (partnerExists) {
+          // Partner is still in the room — just remove this user's side
+          await updateDoc(doc(db, "rooms", roomId), {
+            [`users.${userKey}`]: null,
+            notes: (roomData?.notes || []).filter(n => n.from !== userKey),
+            memories: (roomData?.memories || []).filter(m => m.userKey !== userKey),
+          });
+        } else {
+          // No partner — delete the whole room
+          await updateDoc(doc(db, "rooms", roomId), {
+            users: { A: null, B: null },
+            notes: [],
+            memories: [],
+            bucket: [],
+            notifications: [],
+          });
+        }
+      }
+
+      // 2 — Delete user document from Firestore
+      await updateDoc(doc(db, "users", uid), {
+        name: "[deleted]",
+        photo: "",
+        status: "",
+        birthday: "",
+        timezone: "",
+        favoriteEmoji: "",
+        fcmToken: "",
+        roomId: null,
+        userKey: null,
+      });
+
+      // 3 — Delete Firebase Auth account
+      const currentUser = auth.currentUser;
+      if (currentUser) await deleteUser(currentUser);
+
+      setStep("done");
+      setTimeout(() => onSignOut(), 1800);
+    } catch (e) {
+      console.error("Delete failed:", e);
+      // If deleteUser fails it may need re-authentication
+      // In that case sign out and show message
+      setStep("idle");
+      alert("Please sign out and sign back in, then try deleting again. This is a security requirement.");
+    }
+  };
+
+  if (step === "done") return (
+    <div style={{background:"rgba(107,143,113,0.08)",border:`1px solid ${C.sageBd}`,borderRadius:14,padding:"13px 16px",fontSize:13,color:C.sage,fontFamily:LT,textAlign:"center"}}>
+      Account deleted. Goodbye ♥
+    </div>
+  );
+
+  if (step === "deleting") return (
+    <div style={{background:"rgba(212,82,106,0.05)",border:`1px solid ${C.roseBd}`,borderRadius:14,padding:"13px 16px",fontSize:13,color:C.muted,fontFamily:LT,display:"flex",alignItems:"center",gap:8}}>
+      <div className="hb-spin"><Sparkle size={14} color={C.muted}/></div>
+      Deleting your account...
+    </div>
+  );
+
+  if (step === "confirm") return (
+    <div style={{background:"rgba(212,82,106,0.06)",border:`1px solid ${C.roseBd}`,borderRadius:16,padding:18}}>
+      <div style={{fontSize:14,fontWeight:700,color:C.text,fontFamily:LT,marginBottom:6}}>Are you sure?</div>
+      <p style={{fontSize:13,color:C.muted,fontFamily:LT,lineHeight:1.6,marginBottom:16}}>
+        This permanently deletes your account and removes your data from this room. Your partner will remain but you will be removed. This cannot be undone.
+      </p>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <button onClick={()=>setStep("idle")} style={{padding:"11px 0",borderRadius:13,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:C.muted}}>
+          Cancel
+        </button>
+        <button onClick={handleDelete} style={{padding:"11px 0",borderRadius:13,border:"none",background:C.gradRose,cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:"#fff",boxShadow:"0 4px 14px rgba(212,82,106,0.35)"}}>
+          Yes, delete
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <button onClick={()=>setStep("confirm")} style={{display:"flex",alignItems:"center",gap:12,background:"transparent",border:`1px solid rgba(212,82,106,0.20)`,borderRadius:14,padding:"13px 16px",cursor:"pointer",fontSize:14,color:"rgba(212,82,106,0.6)",fontFamily:LT,width:"100%",fontWeight:600,transition:"all 0.2s"}}
+      onMouseEnter={e=>{e.currentTarget.style.background="rgba(212,82,106,0.06)";e.currentTarget.style.color=C.rose;e.currentTarget.style.borderColor=C.rose;}}
+      onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color="rgba(212,82,106,0.6)";e.currentTarget.style.borderColor="rgba(212,82,106,0.20)";}}>
+      <X size={18} color="rgba(212,82,106,0.6)"/> Delete account
+    </button>
+  );
+}
+function ProfileTab({me,partner,myUser,partnerUser,uid,userKey,roomId,roomData,update,onSignOut}){
   const [editing,setEditing]=useState(false);
   const [name,setName]=useState(myUser?.name||""); const [photo,setPhoto]=useState(myUser?.photo||"");
   const [status,setStatus]=useState(myUser?.status||""); const [timezone,setTimezone]=useState(myUser?.timezone||"");
@@ -969,13 +1097,27 @@ function ProfileTab({me,partner,myUser,partnerUser,uid,userKey,roomData,update,o
         {/* ACTIONS */}
         {editing&&(busy?<Spinner text="Saving..."/>:<Btn onClick={save} style={{marginBottom:12}} className="s5">Save changes</Btn>)}
 
+{/* Settings */}
         <Card style={{marginBottom:20}} className="s6">
           <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:14,fontFamily:LT}}>Settings</div>
-          <button onClick={onSignOut} className="card-hover" style={{display:"flex",alignItems:"center",gap:12,background:"rgba(212,82,106,0.05)",border:`1px solid ${C.roseBd}`,borderRadius:14,padding:"13px 16px",cursor:"pointer",fontSize:14,color:C.rose,fontFamily:LT,width:"100%",fontWeight:600,transition:"all 0.2s"}}>
+
+          {/* Privacy policy link */}
+          <a href="/privacy.html" target="_blank" style={{display:"flex",alignItems:"center",gap:12,background:"rgba(212,82,106,0.04)",border:`1px solid ${C.roseBd}`,borderRadius:14,padding:"13px 16px",textDecoration:"none",fontSize:14,color:C.rose,fontFamily:LT,width:"100%",fontWeight:600,marginBottom:10,transition:"all 0.2s"}}
+            onMouseEnter={e=>e.currentTarget.style.background="rgba(212,82,106,0.08)"}
+            onMouseLeave={e=>e.currentTarget.style.background="rgba(212,82,106,0.04)"}>
+            <Sparkle size={18} color={C.rose}/> Privacy policy
+          </a>
+
+          {/* Sign out */}
+          <button onClick={onSignOut} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(212,82,106,0.05)",border:`1px solid ${C.roseBd}`,borderRadius:14,padding:"13px 16px",cursor:"pointer",fontSize:14,color:C.rose,fontFamily:LT,width:"100%",fontWeight:600,marginBottom:10,transition:"all 0.2s"}}
+            onMouseEnter={e=>e.currentTarget.style.background="rgba(212,82,106,0.10)"}
+            onMouseLeave={e=>e.currentTarget.style.background="rgba(212,82,106,0.05)"}>
             <SignOut size={18} color={C.rose}/> Sign out
           </button>
-        </Card>
 
+          {/* Delete account */}
+          <DeleteAccountButton uid={uid} roomId={roomId} userKey={userKey} roomData={roomData} onSignOut={onSignOut}/>
+        </Card>
       </div>
     </div>
   );
@@ -1124,31 +1266,31 @@ function LoveNotes({me,partner,userKey,roomData,update,addN,back}){
 
   const reveal=async id=>{ await update({notes:notes.map(n=>n.id===id?{...n,[readKey]:true}:n)}); };
 
-  const NOTE_GRADS=[
-    "linear-gradient(135deg,#F093A0,#D4526A)",
-    "linear-gradient(135deg,#F0C060,#D4922A)",
-    "linear-gradient(135deg,#90C498,#6B8F71)",
-    "linear-gradient(135deg,#B0A0E0,#8B6BAD)",
-    "linear-gradient(135deg,#FFB3A0,#FF8C78)",
-    "linear-gradient(135deg,#A0D4E0,#5A9DB8)",
-  ];
+  const NOTE_GRADS=["linear-gradient(135deg,#F093A0,#D4526A)","linear-gradient(135deg,#F0C060,#D4922A)","linear-gradient(135deg,#90C498,#6B8F71)","linear-gradient(135deg,#B0A0E0,#8B6BAD)","linear-gradient(135deg,#FFB3A0,#FF8C78)","linear-gradient(135deg,#A0D4E0,#5A9DB8)"];
 
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#FFD6D6 0%,#FFF0EC 40%,#FFF6F3 100%)",paddingBottom:100}}>
       <div style={{position:"relative",overflow:"hidden"}}>
         <GradOrb size={300} top={-60}/>
 
-        {/* HERO */}
-        <div style={{padding:"32px 22px 24px",position:"relative",zIndex:1,textAlign:"center"}} className="fade-rise">
-          <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:60,height:60,borderRadius:"50%",background:C.gradRose,boxShadow:SHADOWS.lg,marginBottom:16}}><Envelope size={30} color="#fff" weight="fill"/></div>
-          <h2 style={{fontFamily:PF,fontSize:30,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:8}}>Love Notes</h2>
-          <p style={{fontSize:14,color:C.muted,fontFamily:LT}}>Little letters, big feelings</p>
-          {unread>0&&<div className="fade-rise" style={{display:"inline-flex",alignItems:"center",gap:6,background:C.gradRose,borderRadius:20,padding:"6px 14px",marginTop:12,boxShadow:SHADOWS.sm}}><Envelope size={13} color="#fff" weight="fill"/><span style={{fontSize:12,fontWeight:700,color:"#fff",fontFamily:LT}}>{unread} unread from {partner?.name}</span></div>}
+        {/* HERO with back button */}
+        <div style={{padding:"22px 22px 20px",position:"relative",zIndex:1}} className="fade-rise">
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+            <BackBtn onClick={back}/>
+            <div style={{flex:1,textAlign:"center"}}>
+              <h2 style={{fontFamily:PF,fontSize:28,fontStyle:"italic",fontWeight:400,color:C.text}}>Love Notes</h2>
+              <p style={{fontSize:13,color:C.muted,fontFamily:LT,marginTop:4}}>Little letters, big feelings</p>
+            </div>
+            {unread>0
+              ?<div style={{background:C.gradRose,borderRadius:20,padding:"5px 12px",display:"flex",alignItems:"center",gap:4,boxShadow:SHADOWS.sm}}><Envelope size={12} color="#fff" weight="fill"/><span style={{fontSize:11,fontWeight:700,color:"#fff",fontFamily:LT}}>{unread}</span></div>
+              :<div style={{width:40}}/>
+            }
+          </div>
         </div>
 
         {/* WRITE CARD */}
         <div style={{padding:"0 18px 20px",position:"relative",zIndex:1}} className="s1">
-          <div style={{background:"rgba(255,255,255,0.95)",borderRadius:24,padding:22,boxShadow:focused?SHADOWS.xl:SHADOWS.lg,border:`1px solid ${focused?"rgba(212,82,106,0.35)":"rgba(255,255,255,0.92)"}`,transition:"all 0.3s",boxShadow:focused?`${SHADOWS.lg}, 0 0 0 4px ${C.roseGlow}`:SHADOWS.lg}}>
+          <div style={{background:"rgba(255,255,255,0.96)",borderRadius:24,padding:22,boxShadow:focused?`${SHADOWS.lg},0 0 0 4px ${C.roseGlow}`:SHADOWS.lg,border:`1px solid ${focused?"rgba(212,82,106,0.35)":"rgba(255,255,255,0.92)"}`,transition:"all 0.3s"}}>
             <textarea value={text} onChange={e=>setText(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} placeholder={`Write to ${partner?.name}...`} rows={3} style={{width:"100%",background:"transparent",border:"none",outline:"none",fontFamily:PF,fontSize:16,fontStyle:"italic",color:C.text,resize:"none",lineHeight:1.7,marginBottom:14}}/>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div style={{fontSize:12,color:C.muted,fontFamily:LT}}>{text.length>0?`${text.length} chars`:""}</div>
@@ -1180,7 +1322,7 @@ function LoveNotes({me,partner,userKey,roomData,update,addN,back}){
                       <button onClick={()=>reveal(note.id)} style={{background:"rgba(255,255,255,0.25)",border:"1px solid rgba(255,255,255,0.4)",borderRadius:14,padding:"8px 16px",cursor:"pointer",fontFamily:LT,fontSize:12,fontWeight:700,color:"#fff",backdropFilter:"blur(4px)"}}>Reveal ❤️</button>
                     </div>
                     :fromMe
-                      ?<div className="card-hover" style={{background:"rgba(255,255,255,0.92)",borderRadius:20,padding:"16px 14px",boxShadow:SHADOWS.sm,border:`1px solid rgba(212,82,106,0.10)`}}>
+                      ?<div className="card-hover" style={{background:"rgba(255,255,255,0.93)",borderRadius:20,padding:"16px 14px",boxShadow:SHADOWS.sm,border:"1px solid rgba(212,82,106,0.10)"}}>
                         <div style={{fontSize:10,color:C.muted,fontFamily:LT,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>You · {note.date}</div>
                         <p style={{fontFamily:PF,fontSize:14,fontStyle:"italic",color:C.text,lineHeight:1.6}}>{note.text}</p>
                       </div>
@@ -1198,7 +1340,6 @@ function LoveNotes({me,partner,userKey,roomData,update,addN,back}){
     </div>
   );
 }
-
 function Gratitude({me,partner,userKey,roomData,update,addN,back}){
   const pk=userKey==="A"?"B":"A"; const fk=`grat_${todayKey()}`; const grat=roomData?.[fk];
   const [text,setText]=useState(grat?.[userKey]||""); const submitted=!!grat?.[userKey],partnerDone=!!grat?.[pk],both=submitted&&partnerDone;
@@ -1439,6 +1580,7 @@ export default function App() {
         setAppState("profile-setup"); return;
       }
       const ud=snap.data(); setMyUser(ud); setRoomId(ud.roomId); setUserKey(ud.userKey);
+      requestNotifPermission(u.uid);
     });
     return unsub;
   },[]);
@@ -1540,4 +1682,12 @@ export default function App() {
       {!screen&&<TabBar tab={tab} setTab={t=>{setTab(t);setScreen(null);}} unread={unread} notesBadge={notesBadge}/>}
     </div>
   );
+}
+// Register service worker for PWA + push notifications
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/firebase-messaging-sw.js")
+      .then(reg => console.log("SW registered:", reg.scope))
+      .catch(err => console.error("SW failed:", err));
+  });
 }
