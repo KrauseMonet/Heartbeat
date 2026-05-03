@@ -651,6 +651,7 @@ function PlayTab({me,partner,userKey,roomData,update,addN,go}){
     {icon:"🎭",title:"Truth or Dare",desc:"Pick your fate",key:"tord"},
     {icon:"📊",title:"Compatibility",desc:"How alike are you?",key:"compat"},
     {icon:"💝",title:"Love Language",desc:"Know each other better",key:"lovelang"},
+    {icon:"🔥",title:"Desire",desc:"Bold & daring prompts",key:"desire"},
   ];
 
   return <div style={{padding:"24px 18px 100px"}} className="hb-fade">
@@ -867,18 +868,262 @@ function NHIE({me,partner,userKey,roomData,update,addN,back}){
     {ninh.statements.every(s=>s.A&&s.B)&&<Btn variant="outline" onClick={()=>update({[fk]:null})}>New round →</Btn>}</div>)}
   </div>;
 }
+function DesireGame({me,partner,userKey,roomData,update,addN,back}){
+  const pk=userKey==="A"?"B":"A";
+  const fk=`desire_${todayKey()}`;
+  const desire=roomData?.[fk];
+  const [loading,setLoading]=useState(false);
+  const [response,setResponse]=useState(desire?.responses?.[userKey]||"");
+  const [category,setCategory]=useState("random");
 
-function TruthOrDare({me,partner,userKey,roomData,update,addN,back}){
-  const tord=roomData?.tord; const [loading,setLoading]=useState(false);
-  const pick=async type=>{ setLoading(true); try{ const content=await callClaude(type==="truth"?"One 'Truth' question for a couple — personal, slightly vulnerable. Return ONLY the question.":"One 'Dare' for long-distance — they can do it alone and share via photo/text. Return ONLY the dare.",`Generate a ${type}.`); await update({tord:{type,content,done:false}}); await addN("tord",`${me?.name} picked a ${type}`); }catch(e){console.error(e);} setLoading(false); };
-  return <div style={{padding:"22px 18px 48px"}} className="hb-fade">
-    <Hdr title="Truth or Dare" sub="Pick your fate" back={back}/>
-    {!tord?.type?(<div><div style={{textAlign:"center",paddingTop:8,marginBottom:28}}><div style={{fontSize:56,marginBottom:14}} className="hb-float">🎭</div><p style={{color:C.muted,fontSize:15,lineHeight:1.7,fontFamily:LT}}>What will it be?</p></div>{loading?<Spinner text="Rolling the dice..."/>:(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}><button onClick={()=>pick("truth")} style={{background:C.accentSoft,border:`2px solid ${C.accentBd}`,borderRadius:20,padding:"28px 14px",cursor:"pointer",fontFamily:LT,textAlign:"center",transition:"all 0.2s"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.03)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}><div style={{fontSize:36,marginBottom:10}}>💬</div><div style={{fontSize:17,fontWeight:700,color:C.accent,fontFamily:PF,fontStyle:"italic"}}>Truth</div></button><button onClick={()=>pick("dare")} style={{background:C.goldSoft,border:`2px solid ${C.goldBd}`,borderRadius:20,padding:"28px 14px",cursor:"pointer",fontFamily:LT,textAlign:"center",transition:"all 0.2s"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.03)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}><div style={{fontSize:36,marginBottom:10}}>⚡</div><div style={{fontSize:17,fontWeight:700,color:C.gold,fontFamily:PF,fontStyle:"italic"}}>Dare</div></button></div>)}</div>):(
-    <div><div style={{background:tord.type==="truth"?C.accentSoft:C.goldSoft,border:`2px solid ${tord.type==="truth"?C.accentBd:C.goldBd}`,borderRadius:22,padding:28,marginBottom:20,textAlign:"center"}}><div style={{fontSize:12,fontWeight:700,color:tord.type==="truth"?C.accent:C.gold,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:16,fontFamily:LT}}>{tord.type==="truth"?"💬 Truth":"⚡ Dare"}</div><p style={{fontFamily:PF,fontSize:20,fontStyle:"italic",color:C.text,lineHeight:1.6,margin:0}}>{tord.content}</p></div>{!tord.done?(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Btn onClick={async()=>await update({tord:{...tord,done:true}})}>✓ Done!</Btn><Btn variant="ghost" onClick={async()=>await update({tord:null})}>Skip →</Btn></div>):(<div><div style={{background:"#E8F5EC",border:"1px solid #B5DFC2",borderRadius:16,padding:16,textAlign:"center",marginBottom:16}}><div style={{fontSize:28,marginBottom:6}}>🎉</div><div style={{fontWeight:700,color:"#3d7a52",fontFamily:LT}}>Challenge completed!</div></div><Btn variant="outline" onClick={async()=>await update({tord:null})}>Pick another →</Btn></div>)}
-    </div>)}
-  </div>;
+  const CATS=[
+    {key:"confess",icon:"💭",label:"Confess",   desc:"Admit something bold"},
+    {key:"dare",   icon:"🔥",label:"Dare",      desc:"Do something daring"},
+    {key:"question",icon:"💋",label:"Question", desc:"Answer something intimate"},
+    {key:"fantasy",icon:"✨",label:"Fantasy",   desc:"Share a fantasy"},
+  ];
+
+  const generate=async()=>{
+    setLoading(true);
+    try {
+      const cat=category==="random"?CATS[Math.floor(Math.random()*CATS.length)].key:category;
+      const prompts={
+        confess:"Generate one bold confession prompt for a couple in a committed long-distance relationship. Push them to admit something intimate or vulnerable they haven't said before. Return ONLY the prompt, no preamble.",
+        dare:"Generate one spicy dare for a person in a long-distance relationship. Must be something they can do alone and share with their partner via text, photo or voice note — intimate and bold but doable remotely. Return ONLY the dare, nothing else.",
+        question:"Generate one bold intimate question for a couple that reveals desires or deep feelings. Push beyond surface level but keep it about their relationship. Return ONLY the question.",
+        fantasy:"Generate one prompt for a couple to share a fantasy with each other — imaginative, sensual and specific to long-distance lovers. Return ONLY the prompt.",
+      };
+      const result=await callClaude(
+        "You generate bold adult content for consenting couples in committed long-distance relationships. Content is intimate and daring but always respectful, never degrading. Focus on emotional and sensual connection.",
+        prompts[cat]
+      );
+      await update({[fk]:{prompt:result,category:cat,responses:{},revealed:false}});
+    } catch(e){console.error(e);}
+    setLoading(false);
+  };
+
+  const submitResponse=async()=>{
+    if(!response.trim()) return;
+    await update({[`${fk}.responses.${userKey}`]:response.trim()});
+    await addN("desire",`${me?.name} responded to Desire 🔥`);
+  };
+
+  const reveal=async()=>{ await update({[`${fk}.revealed`]:true}); };
+
+  const bothResponded=desire?.responses?.[userKey]&&desire?.responses?.[pk];
+  const phase=!desire?.prompt?"gen":!desire?.responses?.[userKey]?"respond":!desire?.responses?.[pk]?"wait":!desire?.revealed?"reveal":"result";
+  const catInfo=CATS.find(c=>c.key===desire?.category)||CATS[0];
+
+  // Dark card style for the prompt
+  const DarkCard=({children})=><div style={{background:"#1A0A05",borderRadius:22,padding:28,marginBottom:22,textAlign:"center"}}>{children}</div>;
+
+  return (
+    <div style={{padding:"22px 18px 100px"}} className="hb-fade">
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:24}}>
+        <BackBtn onClick={back}/>
+        <div style={{flex:1}}>
+          <h2 style={{fontFamily:PF,fontSize:22,fontWeight:400,fontStyle:"italic",color:C.text}}>Desire</h2>
+          <div style={{fontSize:12,color:C.muted,fontFamily:LT}}>Bold. Daring. Just the two of you.</div>
+        </div>
+        <div style={{background:"#1A0A05",borderRadius:20,padding:"5px 13px"}}>
+          <span style={{fontSize:11,fontWeight:700,color:"#E8A080",fontFamily:LT,letterSpacing:"0.05em"}}>🔥 SPICY</span>
+        </div>
+      </div>
+
+      {/* GEN phase */}
+      {phase==="gen"&&<div className="hb-fade">
+        <div style={{textAlign:"center",paddingTop:12,marginBottom:32}}>
+          <div style={{fontSize:64,marginBottom:18}} className="hb-float">🔥</div>
+          <h3 style={{fontFamily:PF,fontSize:26,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:10}}>Push each other's limits</h3>
+          <p style={{color:C.muted,fontSize:15,lineHeight:1.75,fontFamily:LT}}>Bold prompts. Honest answers.<br/>Just the two of you.</p>
+        </div>
+
+        <div style={{marginBottom:24}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>Choose a category</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <button onClick={()=>setCategory("random")} style={{padding:"16px 12px",borderRadius:18,border:`2px solid ${category==="random"?"#1A0A05":C.border}`,background:category==="random"?"#1A0A05":C.surface,cursor:"pointer",fontFamily:LT,textAlign:"center",transition:"all 0.2s"}}>
+              <div style={{fontSize:26,marginBottom:7}}>🎲</div>
+              <div style={{fontSize:13,fontWeight:700,color:category==="random"?"#E8A080":C.text}}>Surprise me</div>
+              <div style={{fontSize:11,color:category==="random"?"#A07060":"#8A6A50",marginTop:3,fontFamily:LT}}>Any category</div>
+            </button>
+            {CATS.map(cat=>(
+              <button key={cat.key} onClick={()=>setCategory(cat.key)} style={{padding:"16px 12px",borderRadius:18,border:`2px solid ${category===cat.key?"#1A0A05":C.border}`,background:category===cat.key?"#1A0A05":C.surface,cursor:"pointer",fontFamily:LT,textAlign:"center",transition:"all 0.2s"}}
+                onMouseEnter={e=>{if(category!==cat.key){e.currentTarget.style.borderColor=C.accentBd;e.currentTarget.style.background=C.accentSoft;}}}
+                onMouseLeave={e=>{if(category!==cat.key){e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background=C.surface;}}}>
+                <div style={{fontSize:26,marginBottom:7}}>{cat.icon}</div>
+                <div style={{fontSize:13,fontWeight:700,color:category===cat.key?"#E8A080":C.text}}>{cat.label}</div>
+                <div style={{fontSize:11,color:category===cat.key?"#A07060":C.muted,marginTop:3,fontFamily:LT}}>{cat.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {loading?<Spinner text="Generating your prompt..."/>:<Btn onClick={generate} style={{background:"#1A0A05",color:"#FAF0E8",border:"none",letterSpacing:"0.08em"}}>Generate prompt 🔥</Btn>}
+      </div>}
+
+      {/* RESPOND phase */}
+      {phase==="respond"&&<div className="hb-fade">
+        <DarkCard>
+          <div style={{fontSize:11,fontWeight:700,color:"#E8A080",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:14,fontFamily:LT}}>{catInfo.icon} {catInfo.label}</div>
+          <p style={{fontFamily:PF,fontSize:20,fontStyle:"italic",color:"#FAF0E8",lineHeight:1.65,margin:0}}>{desire.prompt}</p>
+        </DarkCard>
+        <Field textarea label={`Your response, ${me?.name}`} value={response} onChange={e=>setResponse(e.target.value)} placeholder="Be honest. Be bold." es={{minHeight:120}}/>
+        <Btn disabled={!response.trim()} onClick={submitResponse} style={{background:"#1A0A05",color:"#FAF0E8",border:"none"}}>Lock in my response →</Btn>
+        <p style={{textAlign:"center",fontSize:12,color:C.muted,marginTop:12,fontFamily:LT}}>Hidden until your partner responds</p>
+      </div>}
+
+      {/* WAIT phase */}
+      {phase==="wait"&&<div className="hb-fade">
+        <DarkCard>
+          <p style={{fontFamily:PF,fontSize:20,fontStyle:"italic",color:"#FAF0E8",lineHeight:1.65,margin:0}}>{desire.prompt}</p>
+        </DarkCard>
+        <div style={{background:C.accentSoft,border:`1px solid ${C.accentBd}`,borderRadius:16,padding:18,marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.accent,marginBottom:8,fontFamily:LT}}>✓ Your response is locked in</div>
+          <div style={{fontSize:15,color:C.text,fontFamily:LT,lineHeight:1.6}}>{desire?.responses?.[userKey]}</div>
+        </div>
+        <div style={{background:C.goldSoft,border:`1px solid ${C.goldBd}`,borderRadius:14,padding:14,textAlign:"center",fontSize:13,color:C.gold,fontFamily:LT}}>
+          ⏳ Waiting for {partner?.name} to respond...
+        </div>
+      </div>}
+
+      {/* REVEAL phase */}
+      {phase==="reveal"&&<div className="hb-fade">
+        <DarkCard>
+          <p style={{fontFamily:PF,fontSize:19,fontStyle:"italic",color:"#FAF0E8",lineHeight:1.65,margin:0}}>{desire.prompt}</p>
+        </DarkCard>
+        <div style={{textAlign:"center",padding:"16px 0 28px"}}>
+          <div style={{fontSize:52,marginBottom:16}} className="hb-float">🔥</div>
+          <p style={{fontFamily:PF,fontSize:21,fontStyle:"italic",color:C.text,marginBottom:8}}>Both of you have responded.</p>
+          <p style={{fontSize:14,color:C.muted,fontFamily:LT,marginBottom:28,lineHeight:1.65}}>Open this together.<br/>Read each other's answers at the same time.</p>
+          <Btn onClick={reveal} style={{background:"#1A0A05",color:"#FAF0E8",border:"none",letterSpacing:"0.08em"}}>Reveal together 🔥</Btn>
+        </div>
+      </div>}
+
+      {/* RESULT phase */}
+      {phase==="result"&&<div className="hb-fade">
+        <DarkCard>
+          <div style={{fontSize:11,fontWeight:700,color:"#E8A080",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12,fontFamily:LT}}>{catInfo.icon} {catInfo.label}</div>
+          <p style={{fontFamily:PF,fontSize:18,fontStyle:"italic",color:"#FAF0E8",lineHeight:1.6,margin:0}}>{desire.prompt}</p>
+        </DarkCard>
+        {[[userKey,me?.name,C.accent,C.accentSoft,C.accentBd],[pk,partner?.name,C.gold,C.goldSoft,C.goldBd]].map(([key,name,color,soft,bd])=>(
+          <div key={key} style={{background:soft,border:`1px solid ${bd}`,borderRadius:18,padding:22,marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>{name}</div>
+            <p style={{fontFamily:PF,fontSize:18,fontStyle:"italic",color:C.text,lineHeight:1.65,margin:0}}>"{desire.responses?.[key]||<i style={{color:C.muted}}>Not answered yet</i>}"</p>
+          </div>
+        ))}
+        <Btn onClick={()=>update({[fk]:null})} style={{background:"#1A0A05",color:"#FAF0E8",border:"none",marginBottom:10}}>New prompt 🔥</Btn>
+        <Btn variant="ghost" onClick={back}>← Back</Btn>
+      </div>}
+    </div>
+  );
 }
 
+function TruthOrDare({me,partner,userKey,roomData,update,addN,back}){
+  const tord=roomData?.tord;
+  const [loading,setLoading]=useState(false);
+  const [spicy,setSpicy]=useState(false);
+
+  const pick=async type=>{
+    setLoading(true);
+    try {
+      const content=await callClaude(
+        spicy
+          ? "You generate bold, spicy content for consenting couples in a committed long-distance relationship. Content is daring and intimate. Never degrading — always within the context of a loving relationship."
+          : "You generate fun content for couples in a long-distance relationship.",
+        spicy
+          ? type==="truth"
+            ? "Generate one bold spicy 'Truth' question for a couple — intimate, revealing, slightly daring. Push beyond the surface. Return ONLY the question."
+            : "Generate one spicy 'Dare' for someone in a long-distance relationship — intimate, daring, but doable alone and shareable via photo/text/voice note. Return ONLY the dare."
+          : type==="truth"
+            ? "One 'Truth' question for a couple — personal, slightly vulnerable. Return ONLY the question."
+            : "One 'Dare' for long-distance — they can do it alone and share via photo/text. Return ONLY the dare."
+      );
+      await update({tord:{type,content,done:false,spicy}});
+      await addN("tord",`${me?.name} picked a ${type}${spicy?" 🔥":""}`);
+    } catch(e){console.error(e);}
+    setLoading(false);
+  };
+
+  return (
+    <div style={{padding:"22px 18px 48px"}} className="hb-fade">
+      <Hdr title="Truth or Dare" sub="Pick your fate" back={back}
+        right={
+          <button onClick={()=>setSpicy(s=>!s)} style={{
+            background:spicy?"#1A0A05":C.surface,
+            border:`1.5px solid ${spicy?"#1A0A05":C.border}`,
+            borderRadius:20,padding:"6px 14px",cursor:"pointer",fontFamily:LT,
+            fontSize:12,fontWeight:700,color:spicy?"#E8A080":C.muted,transition:"all 0.25s"
+          }}>
+            {spicy?"🔥 Spicy":"🔥 Spicy off"}
+          </button>
+        }
+      />
+
+      {spicy&&<div style={{background:"#1A0A05",borderRadius:14,padding:"11px 16px",marginBottom:20,display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:18}}>🔥</span>
+        <span style={{fontSize:13,color:"#E8A080",fontFamily:LT,fontWeight:600}}>Spicy mode on — content is bolder and more intimate</span>
+      </div>}
+
+      {!tord?.type?(
+        <div>
+          <div style={{textAlign:"center",paddingTop:8,marginBottom:28}}>
+            <div style={{fontSize:56,marginBottom:14}} className="hb-float">🎭</div>
+            <p style={{color:C.muted,fontSize:15,lineHeight:1.7,fontFamily:LT}}>What will it be?</p>
+          </div>
+          {loading?<Spinner text="Rolling the dice..."/>:(
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+              <button onClick={()=>pick("truth")} style={{
+                background:spicy?"#1A0A05":C.accentSoft,
+                border:`2px solid ${spicy?"#3A1A0A":C.accentBd}`,
+                borderRadius:20,padding:"28px 14px",cursor:"pointer",fontFamily:LT,textAlign:"center",transition:"all 0.2s"
+              }} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.03)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}>
+                <div style={{fontSize:36,marginBottom:10}}>💬</div>
+                <div style={{fontSize:17,fontWeight:700,color:spicy?"#E8A080":C.accent,fontFamily:PF,fontStyle:"italic"}}>Truth</div>
+                <div style={{fontSize:11,color:spicy?"#A07060":C.muted,marginTop:5}}>Answer honestly</div>
+              </button>
+              <button onClick={()=>pick("dare")} style={{
+                background:spicy?"#1A0A05":C.goldSoft,
+                border:`2px solid ${spicy?"#3A1A0A":C.goldBd}`,
+                borderRadius:20,padding:"28px 14px",cursor:"pointer",fontFamily:LT,textAlign:"center",transition:"all 0.2s"
+              }} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.03)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}>
+                <div style={{fontSize:36,marginBottom:10}}>⚡</div>
+                <div style={{fontSize:17,fontWeight:700,color:spicy?"#E8A080":C.gold,fontFamily:PF,fontStyle:"italic"}}>Dare</div>
+                <div style={{fontSize:11,color:spicy?"#A07060":C.muted,marginTop:5}}>Accept the challenge</div>
+              </button>
+            </div>
+          )}
+        </div>
+      ):(
+        <div>
+          <div style={{
+            background:tord.spicy?"#1A0A05":tord.type==="truth"?C.accentSoft:C.goldSoft,
+            border:`2px solid ${tord.spicy?"#3A1A0A":tord.type==="truth"?C.accentBd:C.goldBd}`,
+            borderRadius:22,padding:26,marginBottom:20,textAlign:"center"
+          }}>
+            <div style={{fontSize:12,fontWeight:700,color:tord.spicy?"#E8A080":tord.type==="truth"?C.accent:C.gold,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:14,fontFamily:LT}}>
+              {tord.type==="truth"?"💬 Truth":"⚡ Dare"}{tord.spicy?" 🔥":""}
+            </div>
+            <p style={{fontFamily:PF,fontSize:19,fontStyle:"italic",color:tord.spicy?"#FAF0E8":C.text,lineHeight:1.65,margin:0}}>{tord.content}</p>
+          </div>
+          {!tord.done?(
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <Btn onClick={async()=>await update({tord:{...tord,done:true}})}>✓ Done!</Btn>
+              <Btn variant="ghost" onClick={async()=>await update({tord:null})}>Skip →</Btn>
+            </div>
+          ):(
+            <div>
+              <div style={{background:"#E8F5EC",border:"1px solid #B5DFC2",borderRadius:16,padding:16,textAlign:"center",marginBottom:16}}>
+                <div style={{fontSize:28,marginBottom:6}}>🎉</div>
+                <div style={{fontWeight:700,color:"#3d7a52",fontFamily:LT}}>Challenge completed!</div>
+              </div>
+              <Btn variant="outline" onClick={async()=>await update({tord:null})}>Pick another →</Btn>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 function CompatScreen({me,partner,userKey,roomData,update,addN,back}){
   const pk=userKey==="A"?"B":"A"; const fk=`compat_${todayKey()}`; const compat=roomData?.[fk]; const [loading,setLoading]=useState(false);
   const generate=async()=>{ setLoading(true); try{ const raw=await callClaude('6 preference questions for a compatibility quiz. Each has a 1-5 scale. Return ONLY JSON array: [{"q":"question","low":"label for 1","high":"label for 5"},...] — no backticks.',"Generate."); const m=raw.match(/\[[\s\S]*?\]/); const qs=JSON.parse(m?m[0]:raw); await update({[fk]:{questions:qs,ratings:{A:{},B:{}}}}); }catch(e){console.error(e);} setLoading(false); };
@@ -963,20 +1208,24 @@ function MemoryJar({me,userKey,roomData,update,addN,back}){
 // ── TAB BAR ────────────────────────────────────────────────────────────────
 function TabBar({tab,setTab,unread,notesBadge}){
   const tabs=[
-    {key:"home",icon:"♥",label:"Home"},
-    {key:"play",icon:"🎮",label:"Play"},
-    {key:"us",icon:"🌿",label:"Us",badge:notesBadge},
-    {key:"profile",icon:"👤",label:"Profile"},
+    {key:"home",   icon:"♥",  label:"Home"},
+    {key:"play",   icon:"🎮", label:"Play"},
+    {key:"us",     icon:"🌿", label:"Us",  badge:notesBadge},
+    {key:"profile",icon:"👤", label:"Profile"},
   ];
-  return <div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",background:C.surface,border:`1px solid ${C.border}`,borderRadius:32,padding:"8px 8px",display:"flex",gap:4,boxShadow:"0 6px 28px rgba(26,10,5,0.14)",zIndex:20,width:"calc(100% - 40px)",maxWidth:440}}>
-    {tabs.map(t=>(
-      <button key={t.key} onClick={()=>setTab(t.key)} style={{flex:1,padding:"10px 0",borderRadius:26,border:"none",background:tab===t.key?C.accent:"transparent",cursor:"pointer",fontFamily:LT,display:"flex",flexDirection:"column",alignItems:"center",gap:3,transition:"all 0.25s",position:"relative"}}>
-        {t.badge>0&&<div style={{position:"absolute",top:6,right:"22%",background:"#E53935",color:"#fff",borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700}}>{t.badge}</div>}
-        <span style={{fontSize:tab===t.key?20:18,transition:"all 0.2s"}}>{t.icon}</span>
-        {tab===t.key&&<span style={{fontSize:10,fontWeight:700,color:"#fff",letterSpacing:"0.05em"}}>{t.label}</span>}
-      </button>
-    ))}
-  </div>;
+  return (
+    <div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",background:"#1A0A05",border:"none",borderRadius:32,padding:"8px 8px",display:"flex",gap:4,boxShadow:"0 6px 28px rgba(26,10,5,0.28)",zIndex:20,width:"calc(100% - 40px)",maxWidth:440}}>
+      {tabs.map(t=>(
+        <button key={t.key} onClick={()=>setTab(t.key)} style={{flex:1,padding:"10px 0",borderRadius:26,border:"none",background:tab===t.key?C.accent:"transparent",cursor:"pointer",fontFamily:LT,display:"flex",flexDirection:"column",alignItems:"center",gap:4,transition:"all 0.25s",position:"relative"}}
+          onMouseEnter={e=>{if(tab!==t.key) e.currentTarget.style.background="rgba(255,255,255,0.08)";}}
+          onMouseLeave={e=>{if(tab!==t.key) e.currentTarget.style.background="transparent";}}>
+          {t.badge>0&&<div style={{position:"absolute",top:6,right:"18%",background:"#E53935",color:"#fff",borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700}}>{t.badge}</div>}
+          <span style={{fontSize:tab===t.key?22:19,transition:"all 0.2s"}}>{t.icon}</span>
+          <span style={{fontSize:10,fontWeight:700,color:tab===t.key?"#fff":"#A07860",letterSpacing:"0.04em",fontFamily:LT}}>{t.label}</span>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 // ── ROOT APP ───────────────────────────────────────────────────────────────
@@ -1100,6 +1349,7 @@ export default function App() {
       {screen==="tord"     &&<TruthOrDare    {...shared} back={backHome}/>}
       {screen==="compat"   &&<CompatScreen   {...shared} back={backHome}/>}
       {screen==="lovelang" &&<LoveLangScreen {...shared} back={backHome}/>}
+      {screen==="desire" &&<DesireGame {...shared} back={backHome}/>}
       {screen==="notes"    &&<LoveNotes      {...shared} back={backHome}/>}
       {screen==="grat"     &&<Gratitude      {...shared} back={backHome}/>}
       {screen==="bucket"   &&<BucketList     {...shared} back={backHome}/>}
