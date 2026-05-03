@@ -88,10 +88,12 @@ async function createRoom(uid, userData) {
 }
 async function joinRoom(uid, code, userData) {
   const ref = doc(db,"rooms",code.toUpperCase());
+  // Write uid as pendingJoin first so rules can validate
+  await updateDoc(ref, { pendingJoinUid: uid });
   const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error("Room not found. Check the code.");
   if (snap.data().users?.B?.name) throw new Error("This room already has two people.");
-  await updateDoc(ref, { "users.B":{...userData,uid} });
+  await updateDoc(ref, { "users.B":{...userData,uid}, pendingJoinUid:null });
   await updateDoc(doc(db,"users",uid), { roomId:code.toUpperCase(), userKey:"B", onboardingDone:true });
   return code.toUpperCase();
 }
@@ -353,9 +355,23 @@ function Login({onLogin}){
   };
   const googleLogin=async()=>{
     setBusy(true); setErr("");
-    try{const result=await signInWithPopup(auth,googleProvider);const u=result.user;const snap=await getDoc(doc(db,"users",u.uid));if(!snap.exists())await setDoc(doc(db,"users",u.uid),{name:u.displayName||"",photo:u.photoURL||"",status:"",timezone:"",birthday:"",favoriteEmoji:"♥",roomId:null,userKey:null,onboardingDone:false});onLogin(u);}catch(e){setErr(e.message);}
-    setBusy(false);
-  };
+const googleLogin=async()=>{
+  setBusy(true); setErr("");
+  try{
+    const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if(isMobile){
+      const {signInWithRedirect} = await import("firebase/auth");
+      await signInWithRedirect(auth,googleProvider);
+    } else {
+      const result=await signInWithPopup(auth,googleProvider);
+      const u=result.user;
+      const snap=await getDoc(doc(db,"users",u.uid));
+      if(!snap.exists())await setDoc(doc(db,"users",u.uid),{name:u.displayName||"",photo:u.photoURL||"",status:"",timezone:"",birthday:"",favoriteEmoji:"♥",roomId:null,userKey:null,onboardingDone:false});
+      onLogin(u);
+    }
+  }catch(e){setErr(e.message);}
+  setBusy(false);
+};
   return (
     <div style={{minHeight:"100vh",background:C.gradHero,position:"relative",overflow:"hidden"}}>
       <GradOrb size={400} top={-100} color1="rgba(255,150,130,0.4)" color2="rgba(255,200,180,0.15)"/>
@@ -1570,6 +1586,15 @@ export default function App() {
   const [partnerUser,setPartnerUser] = useState(null);
 
   useEffect(()=>{
+    const {getRedirectResult} = await import("firebase/auth").catch(()=>({}));
+if(getRedirectResult){
+  getRedirectResult(auth).then(async result=>{
+    if(!result?.user) return;
+    const u=result.user;
+    const snap=await getDoc(doc(db,"users",u.uid));
+    if(!snap.exists())await setDoc(doc(db,"users",u.uid),{name:u.displayName||"",photo:u.photoURL||"",status:"",timezone:"",birthday:"",favoriteEmoji:"♥",roomId:null,userKey:null,onboardingDone:false});
+  }).catch(e=>console.error(e));
+}
     const unsub=onAuthStateChanged(auth, async u=>{
       if(!u){ setAppState("login"); return; }
       setUser(u);
