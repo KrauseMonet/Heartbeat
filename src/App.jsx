@@ -348,8 +348,15 @@ function Login({onLogin}){
     try {
       let cred;
       if(mode==="signin"){cred=await signInWithEmailAndPassword(auth,email.trim(),pass);}
-      else{cred=await createUserWithEmailAndPassword(auth,email.trim(),pass);await setDoc(doc(db,"users",cred.user.uid),{name:name.trim(),photo:"",status:"",timezone:"",birthday:"",favoriteEmoji:"♥",roomId:null,userKey:null,onboardingDone:false});}
-      onLogin(cred.user);
+else {
+  cred = await createUserWithEmailAndPassword(auth, email.trim(), pass);
+  await setDoc(doc(db,"users",cred.user.uid), {
+    name:name.trim(),photo:"",status:"",timezone:"",
+    birthday:"",favoriteEmoji:"♥",
+    roomId:null,userKey:null,onboardingDone:false
+  });
+  await new Promise(r=>setTimeout(r,500));
+}      onLogin(cred.user);
     }catch(e){const msgs={"auth/invalid-credential":"Wrong email or password.","auth/user-not-found":"No account found.","auth/wrong-password":"Wrong password.","auth/email-already-in-use":"Email already registered.","auth/weak-password":"Password needs at least 6 characters.","auth/invalid-email":"Please enter a valid email."}; setErr(msgs[e.code]||e.message);}
     setBusy(false);
   };
@@ -358,16 +365,18 @@ const googleLogin=async()=>{
   try{
     const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if(isMobile){
-      const {signInWithRedirect} = await import("firebase/auth");
+      const {signInWithRedirect}=await import("firebase/auth");
       await signInWithRedirect(auth,googleProvider);
-    } else {
-      const result=await signInWithPopup(auth,googleProvider);
-      const u=result.user;
-      const snap=await getDoc(doc(db,"users",u.uid));
-      if(!snap.exists())await setDoc(doc(db,"users",u.uid),{name:u.displayName||"",photo:u.photoURL||"",status:"",timezone:"",birthday:"",favoriteEmoji:"♥",roomId:null,userKey:null,onboardingDone:false});
-      onLogin(u);
+      return;
     }
-  }catch(e){setErr(e.message);}
+    const result=await signInWithPopup(auth,googleProvider);
+    const u=result.user;
+    const snap=await getDoc(doc(db,"users",u.uid));
+    if(!snap.exists()) await setDoc(doc(db,"users",u.uid),{name:u.displayName||"",photo:u.photoURL||"",status:"",timezone:"",birthday:"",favoriteEmoji:"♥",roomId:null,userKey:null,onboardingDone:false});
+    onLogin(u);
+  }catch(e){
+    if(e.code!=="auth/popup-closed-by-user") setErr(e.message);
+  }
   setBusy(false);
 };
   return (
