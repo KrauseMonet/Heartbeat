@@ -353,8 +353,6 @@ function Login({onLogin}){
     }catch(e){const msgs={"auth/invalid-credential":"Wrong email or password.","auth/user-not-found":"No account found.","auth/wrong-password":"Wrong password.","auth/email-already-in-use":"Email already registered.","auth/weak-password":"Password needs at least 6 characters.","auth/invalid-email":"Please enter a valid email."}; setErr(msgs[e.code]||e.message);}
     setBusy(false);
   };
-  const googleLogin=async()=>{
-    setBusy(true); setErr("");
 const googleLogin=async()=>{
   setBusy(true); setErr("");
   try{
@@ -1714,5 +1712,4 @@ if ("serviceWorker" in navigator) {
       .then(reg => console.log("SW registered:", reg.scope))
       .catch(err => console.error("SW failed:", err));
   });
-}
 }
