@@ -1597,10 +1597,12 @@ export default function App() {
 
   const handleRedirect = import("firebase/auth").then(({getRedirectResult})=>
     getRedirectResult(auth).then(async result=>{
-      if(!result?.user) return;
+      console.log("REDIRECT RESULT:", JSON.stringify(result?.user?.email));
+      if(!result?.user){ console.log("NO REDIRECT USER"); return; }
+      console.log("REDIRECT USER FOUND:", result.user.email);
       redirectUser = result.user;
+      setUser(result.user);
       const u = result.user;
-      setUser(u);
       const snap = await getDoc(doc(db,"users",u.uid));
       if(!snap.exists()) await setDoc(doc(db,"users",u.uid),{
         name:u.displayName||"",photo:u.photoURL||"",
@@ -1622,8 +1624,9 @@ export default function App() {
   );
 
   const unsub = onAuthStateChanged(auth, async u=>{
+    console.log("AUTH STATE:", u?.email||"null", "redirectUser:", !!redirectUser);
     await handleRedirect.catch(()=>{});
-    if(redirectUser) return; // Redirect already handled navigation
+    if(redirectUser){ console.log("REDIRECT HANDLED - SKIPPING"); return; }
     if(!u){ setAppState("login"); return; }
     setUser(u);
     const snap = await getDoc(doc(db,"users",u.uid));
