@@ -1593,28 +1593,41 @@ export default function App() {
   const [partnerUser,setPartnerUser] = useState(null);
 
   useEffect(()=>{
-import("firebase/auth").then(({getRedirectResult})=>{
-  getRedirectResult(auth).then(async result=>{
-    if(!result?.user) return;
-    const u=result.user;
-    const snap=await getDoc(doc(db,"users",u.uid));
-    if(!snap.exists())await setDoc(doc(db,"users",u.uid),{name:u.displayName||"",photo:u.photoURL||"",status:"",timezone:"",birthday:"",favoriteEmoji:"♥",roomId:null,userKey:null,onboardingDone:false});
-  }).catch(e=>console.error(e));
-});
-    const unsub=onAuthStateChanged(auth, async u=>{
-      if(!u){ setAppState("login"); return; }
-      setUser(u);
-      const snap=await getDoc(doc(db,"users",u.uid));
-      if(!snap.exists()||!snap.data().roomId){
-        if(!snap.exists()||!snap.data().onboardingDone) setShowOnb(true);
-        setMyUser(snap.data()||{name:u.displayName||"",photo:u.photoURL||""});
-        setAppState("profile-setup"); return;
-      }
-      const ud=snap.data(); setMyUser(ud); setRoomId(ud.roomId); setUserKey(ud.userKey);
-      requestNotifPermission(u.uid);
-    });
-    return unsub;
-  },[]);
+  let redirectHandled = false;
+
+  const handleRedirect = import("firebase/auth").then(({getRedirectResult})=>
+    getRedirectResult(auth).then(async result=>{
+      if(!result?.user) return;
+      redirectHandled = true;
+      const u = result.user;
+      const snap = await getDoc(doc(db,"users",u.uid));
+      if(!snap.exists()) await setDoc(doc(db,"users",u.uid),{
+        name:u.displayName||"",photo:u.photoURL||"",
+        status:"",timezone:"",birthday:"",
+        favoriteEmoji:"♥",roomId:null,userKey:null,onboardingDone:false
+      });
+    }).catch(e=>console.error("Redirect error:",e))
+  );
+
+  const unsub = onAuthStateChanged(auth, async u=>{
+    // Wait for redirect handling to complete first
+    await handleRedirect.catch(()=>{});
+
+    if(!u){ setAppState("login"); return; }
+    setUser(u);
+    const snap = await getDoc(doc(db,"users",u.uid));
+    if(!snap.exists()||!snap.data().roomId){
+      if(!snap.exists()||!snap.data().onboardingDone) setShowOnb(true);
+      setMyUser(snap.data()||{name:u.displayName||"",photo:u.photoURL||""});
+      setAppState("profile-setup"); return;
+    }
+    const ud = snap.data();
+    setMyUser(ud); setRoomId(ud.roomId); setUserKey(ud.userKey);
+    requestNotifPermission(u.uid);
+  });
+
+  return unsub;
+},[]);
 
   useEffect(()=>{
     if(!roomId) return;
