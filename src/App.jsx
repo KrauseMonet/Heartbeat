@@ -3,13 +3,13 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from "firebase/firestore";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as fbSignOut, GoogleAuthProvider, signInWithPopup, deleteUser } from "firebase/auth";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
-import { Heart, GameController, Leaf, UserCircle, Bell, ArrowLeft, Fire, Camera, PencilSimple, CheckCircle, Plus, X, CaretRight, Heartbeat, Envelope, Jar, ListChecks, HandsPraying, Scales, MaskHappy, HandPointing, ChartBar, ChatTeardrop, FlowerLotus, Sparkle, HouseSimple, Gear, SignOut, CalendarBlank, MapPin, Clock, Star, CalendarHeart, Shuffle, ArrowRight } from "@phosphor-icons/react";
+import { Heart, GameController, Leaf, UserCircle, Bell, ArrowLeft, Fire, Camera, PencilSimple, CheckCircle, Plus, X, CaretRight, Heartbeat, Envelope, Jar, ListChecks, HandsPraying, Scales, MaskHappy, HandPointing, ChartBar, ChatTeardrop, FlowerLotus, Sparkle, HouseSimple, Gear, SignOut, CalendarBlank, MapPin, Clock, Star, CalendarHeart, Shuffle, ArrowRight, Pen } from "@phosphor-icons/react";
 import {
   getDailyQuestion, getDailyWYR, getNHIESet,
   getTruthQuestion, getDare, getCompatSet,
   getDesirePrompt, getWatchSuggestions,
   getDateTemplate, BUCKET_SUGGESTIONS,
-  getWeeklyCheckIn,
+  getWeeklyCheckIn, getDailyWordle, getPictionaryWords,
 } from "./data/content.js";
 // ── FIREBASE ───────────────────────────────────────────────────────────────
 const firebaseConfig = {
@@ -754,6 +754,7 @@ const sendHeart=async()=>{
 function PlayTab({me,partner,userKey,roomData,update,addN,go}){
   const pk=userKey==="A"?"B":"A";
   const today=todayKey();
+  const [playMode,setPlayMode]=useState("connect"); // connect|games
   const [activecat,setActivecat]=useState("all");
 
   const getStatus=key=>{
@@ -767,7 +768,7 @@ function PlayTab({me,partner,userKey,roomData,update,addN,go}){
 
   const cats=[{key:"all",label:"All"},{key:"daily",label:"Daily"},{key:"discovery",label:"Discover"},{key:"spicy",label:"Spicy"}];
 
-  const games=[
+  const intimateGames=[
     {Icon:ChatTeardrop,title:"Daily Q&A",desc:"Guess each other's deepest answers",key:"qa",cat:"daily",grad:"linear-gradient(135deg,#F093A0,#D4526A)",accent:"#fff",status:getStatus("qa"),featured:true},
     {Icon:Scales,title:"Would You Rather",desc:"No right answer — just interesting choices",key:"wyr",cat:"daily",grad:"linear-gradient(135deg,#F0C060,#D4922A)",accent:"#fff",status:getStatus("wyr")},
     {Icon:HandPointing,title:"Never Have I Ever",desc:"Who's actually done what?",key:"nhie",cat:"discovery",grad:"linear-gradient(135deg,#90C498,#6B8F71)",accent:"#fff",status:getStatus("nhie")},
@@ -777,7 +778,13 @@ function PlayTab({me,partner,userKey,roomData,update,addN,go}){
     {Icon:Fire,title:"Desire",desc:"Bold. Daring. Just the two of you.",key:"desire",cat:"spicy",grad:"linear-gradient(135deg,#2A0F08,#8B2A1A)",accent:"#E8A080",dark:true},
   ];
 
-  const filtered=activecat==="all"?games:games.filter(g=>g.cat===activecat);
+  const arcadeGames = [
+    { Icon: GameController, title: "Tic Tac Toe", desc: "Best of 5 rounds • Head-to-head", key: "tictactoe", grad: "linear-gradient(135deg,#FF6B9D,#E85D7B)", accent: "#fff" },
+    { Icon: ChatTeardrop, title: "Wordle Duel", desc: "Daily word • Async solving", key: "wordle", grad: "linear-gradient(135deg,#FFB347,#E89D3C)", accent: "#fff" },
+    { Icon: Pen, title: "Pictionary", desc: "Draw & guess • Real-time", key: "pictionary", grad: "linear-gradient(135deg,#9B59B6,#8E44AD)", accent: "#fff" },
+  ];
+
+  const filtered=playMode==="connect"?(activecat==="all"?intimateGames:intimateGames.filter(g=>g.cat===activecat)):arcadeGames;
 
   const statusLabel={start:"Start","your-turn":"Your turn",waiting:"Waiting",done:"Done ✓"};
   const statusColor={start:C.gold,"your-turn":C.rose,waiting:C.sage,done:C.sage};
@@ -794,18 +801,30 @@ function PlayTab({me,partner,userKey,roomData,update,addN,go}){
           <p style={{fontSize:14,color:C.muted,fontFamily:LT,lineHeight:1.65}}>Moments that bring you closer</p>
         </div>
 
-        {/* CATEGORY STRIP */}
-        <div style={{padding:"0 20px 20px",overflowX:"auto",display:"flex",gap:10,scrollbarWidth:"none",position:"relative",zIndex:1}}>
-          {cats.map(c=>(
-            <button key={c.key} onClick={()=>setActivecat(c.key)} style={{flexShrink:0,padding:"9px 20px",borderRadius:24,border:"none",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,background:activecat===c.key?C.gradRose:"rgba(255,255,255,0.8)",color:activecat===c.key?"#fff":C.muted,boxShadow:activecat===c.key?SHADOWS.md:SHADOWS.sm,transition:"all 0.25s",backdropFilter:"blur(8px)"}}>
-              {c.label}
-            </button>
-          ))}
-          {/* Shuffle */}
-          <button onClick={()=>{ const random=games[Math.floor(Math.random()*games.length)]; go(random.key); }} style={{flexShrink:0,padding:"9px 16px",borderRadius:24,border:`1px solid ${C.border}`,cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,background:"rgba(255,255,255,0.8)",color:C.muted,boxShadow:SHADOWS.sm,display:"flex",alignItems:"center",gap:6,backdropFilter:"blur(8px)"}}>
-            <Shuffle size={14} color={C.muted}/> Shuffle
+        {/* MODE TOGGLE — Connect vs Games */}
+        <div style={{padding:"0 20px 20px",display:"flex",gap:10,position:"relative",zIndex:1}}>
+          <button onClick={()=>{setPlayMode("connect");setActivecat("all");}} style={{flex:1,padding:"10px 0",borderRadius:24,border:"none",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,background:playMode==="connect"?C.gradRose:"rgba(255,255,255,0.8)",color:playMode==="connect"?"#fff":C.muted,boxShadow:playMode==="connect"?SHADOWS.md:SHADOWS.sm,transition:"all 0.25s"}}>
+            Connect
+          </button>
+          <button onClick={()=>setPlayMode("games");} style={{flex:1,padding:"10px 0",borderRadius:24,border:"none",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,background:playMode==="games"?C.gradRose:"rgba(255,255,255,0.8)",color:playMode==="games"?"#fff":C.muted,boxShadow:playMode==="games"?SHADOWS.md:SHADOWS.sm,transition:"all 0.25s"}}>
+            Games
           </button>
         </div>
+
+        {/* CATEGORY STRIP — only for Connect mode */}
+        {playMode==="connect"&&(
+          <div style={{padding:"0 20px 20px",overflowX:"auto",display:"flex",gap:10,scrollbarWidth:"none",position:"relative",zIndex:1}}>
+            {cats.map(c=>(
+              <button key={c.key} onClick={()=>setActivecat(c.key)} style={{flexShrink:0,padding:"9px 20px",borderRadius:24,border:"none",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,background:activecat===c.key?C.gradRose:"rgba(255,255,255,0.8)",color:activecat===c.key?"#fff":C.muted,boxShadow:activecat===c.key?SHADOWS.md:SHADOWS.sm,transition:"all 0.25s",backdropFilter:"blur(8px)"}}>
+                {c.label}
+              </button>
+            ))}
+            {/* Shuffle */}
+            <button onClick={()=>{ const random=filtered[Math.floor(Math.random()*filtered.length)]; go(random.key); }} style={{flexShrink:0,padding:"9px 16px",borderRadius:24,border:`1px solid ${C.border}`,cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,background:"rgba(255,255,255,0.8)",color:C.muted,boxShadow:SHADOWS.sm,display:"flex",alignItems:"center",gap:6,backdropFilter:"blur(8px)"}}>
+              <Shuffle size={14} color={C.muted}/> Shuffle
+            </button>
+          </div>
+        )}
 
         {/* GAME FEED — stacked large cards */}
         <div style={{padding:"0 16px 20px",position:"relative",zIndex:1,display:"flex",flexDirection:"column",gap:14}}>
@@ -837,7 +856,7 @@ function PlayTab({me,partner,userKey,roomData,update,addN,go}){
                     <p style={{fontSize:13,color:g.dark?"rgba(250,240,232,0.6)":"rgba(255,255,255,0.75)",fontFamily:LT,lineHeight:1.55}}>{g.desc}</p>
                   </div>
                   <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10,flexShrink:0}}>
-                    <div style={{background:"rgba(255,255,255,0.18)",borderRadius:20,padding:"6px 12px",fontSize:10,fontWeight:700,color:g.dark?"#E8A080":"rgba(255,255,255,0.9)",fontFamily:LT,letterSpacing:"0.04em",backdropFilter:"blur(4px)"}}>{g.status?statusLabel[g.status]:"Play"}</div>
+                    {g.status&&<div style={{background:"rgba(255,255,255,0.18)",borderRadius:20,padding:"6px 12px",fontSize:10,fontWeight:700,color:g.dark?"#E8A080":"rgba(255,255,255,0.9)",fontFamily:LT,letterSpacing:"0.04em",backdropFilter:"blur(4px)"}}>{statusLabel[g.status]}</div>}
                     <div style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.18)",display:"flex",alignItems:"center",justifyContent:"center"}}><ArrowRight size={18} color={g.dark?"#E8A080":"#fff"}/></div>
                   </div>
                 </div>
@@ -2742,6 +2761,495 @@ function DesireGame({me,partner,userKey,roomData,update,addN,back}){
   );
 }
 
+// ══════════════════════════════════════════════════════════════════
+// ARCADE GAMES — Tic Tac Toe, Wordle Duel, Pictionary
+// ══════════════════════════════════════════════════════════════════
+
+// ── TIC TAC TOE ────────────────────────────────────────────────────
+function TicTacToe({ me, partner, userKey, roomData, update, addN, back }) {
+  const pk = userKey === "A" ? "B" : "A";
+  const today = todayKey();
+  const gameKey = `tictactoe_${today}`;
+  const game = roomData?.[gameKey] || { board: Array(9).fill(null), xNext: true, rounds: [], currentRound: 0, scores: { A: 0, B: 0 } };
+  
+  const isXNext = game.xNext;
+  const isMyTurn = (isXNext && userKey === "A") || (!isXNext && userKey === "B");
+  const winner = calculateWinner(game.board);
+  const isBestOf5 = game.currentRound >= 5;
+  
+  const handleClick = async (i) => {
+    if (game.board[i] || winner) return;
+    const newBoard = [...game.board];
+    newBoard[i] = isXNext ? "X" : "O";
+    const newWinner = calculateWinner(newBoard);
+    
+    let updatedGame = { ...game, board: newBoard, xNext: !isXNext };
+    
+    if (newWinner || newBoard.every(cell => cell !== null)) {
+      const roundWinner = newWinner === "X" ? "A" : newWinner === "O" ? "B" : null;
+      updatedGame.rounds = [...(game.rounds || []), { winner: roundWinner }];
+      updatedGame.currentRound = (game.currentRound || 0) + 1;
+      
+      if (roundWinner) {
+        updatedGame.scores[roundWinner] = (updatedGame.scores[roundWinner] || 0) + 1;
+        await addN("tictactoe", `${me?.name} won round ${updatedGame.currentRound} of Tic Tac Toe!`);
+      }
+      
+      if (updatedGame.currentRound >= 5) {
+        const winner = updatedGame.scores.A > updatedGame.scores.B ? "A" : "B";
+        await addN("tictactoe", `🏆 ${winner === userKey ? "You won" : "Partner won"} best of 5!`);
+      } else {
+        updatedGame.board = Array(9).fill(null);
+        updatedGame.xNext = updatedGame.currentRound % 2 === 0;
+      }
+    }
+    
+    await update({ [gameKey]: updatedGame });
+  };
+  
+  const cells = game.board.map((cell, i) => (
+    <button
+      key={i}
+      onClick={() => handleClick(i)}
+      style={{
+        width: "100%",
+        aspectRatio: "1",
+        borderRadius: 16,
+        border: `2px solid ${C.roseBd}`,
+        background: cell ? "rgba(212,82,106,0.08)" : "rgba(255,255,255,0.85)",
+        fontSize: 40,
+        fontWeight: 700,
+        color: cell === "X" ? C.rose : cell === "O" ? C.gold : "transparent",
+        cursor: isMyTurn && !winner ? "pointer" : "default",
+        fontFamily: PF,
+        boxShadow: SHADOWS.sm,
+        transition: "all 0.2s",
+      }}
+      onMouseEnter={(e) => {
+        if (isMyTurn && !winner && !game.board[i]) {
+          e.currentTarget.style.background = "rgba(212,82,106,0.12)";
+        }
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = game.board[i] ? "rgba(212,82,106,0.08)" : "rgba(255,255,255,0.85)";
+      }}
+    >
+      {cell}
+    </button>
+  ));
+
+  return (
+    <ScreenWrap gradient={C.gradPlay}>
+      <div style={{ position: "relative", overflow: "hidden" }}>
+        <GradOrb size={280} top={-50} color1="rgba(212,82,106,0.2)" color2="rgba(220,150,200,0.08)" />
+        
+        <div style={{ padding: "22px 18px 0", position: "relative", zIndex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+            <BackBtn onClick={back} />
+            <div style={{ flex: 1 }}>
+              <h2 style={{ fontFamily: PF, fontSize: 22, fontWeight: 400, fontStyle: "italic", color: C.text }}>Tic Tac Toe</h2>
+              <div style={{ fontSize: 12, color: C.muted, fontFamily: LT }}>Best of 5</div>
+            </div>
+          </div>
+
+          {/* Scores */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+            {[["A", me?.name, C.rose], ["B", partner?.name, C.gold]].map(([key, name, color]) => (
+              <Card key={key} elevated style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6, fontFamily: LT }}>
+                  {name}
+                </div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: key === userKey ? color : "rgba(26,10,5,0.3)", fontFamily: PF, marginBottom: 6 }}>
+                  {game.scores?.[key] || 0}
+                </div>
+                <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div
+                      key={i}
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: (game.scores?.[key] || 0) >= i ? color : "rgba(26,10,5,0.1)",
+                      }}
+                    />
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Board */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
+            {cells}
+          </div>
+
+          {/* Status */}
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            {!winner && game.board.every(cell => cell === null) ? (
+              <div style={{ fontSize: 14, color: C.muted, fontFamily: LT }}>Round {game.currentRound + 1}/5 — {isMyTurn ? "Your turn" : `${partner?.name}'s turn`}</div>
+            ) : winner ? (
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.rose, fontFamily: LT, marginBottom: 16 }}>
+                🎉 {winner === "X" ? (userKey === "A" ? "You" : partner?.name) : (userKey === "B" ? "You" : partner?.name)} won this round!
+              </div>
+            ) : game.board.every(cell => cell !== null) ? (
+              <div style={{ fontSize: 14, color: C.gold, fontFamily: LT }}>It's a draw!</div>
+            ) : null}
+          </div>
+
+          {(winner || game.board.every(cell => cell !== null)) && game.currentRound < 5 && (
+            <Btn onClick={() => {}} style={{ background: C.gradRose, border: "none", color: "#fff" }}>
+              Round {game.currentRound + 1} complete ✓
+            </Btn>
+          )}
+
+          {game.currentRound >= 5 && (
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: C.rose, marginBottom: 12, fontFamily: PF, fontStyle: "italic" }}>
+                🏆 Game Over!
+              </div>
+              <div style={{ fontSize: 16, color: C.text, marginBottom: 20 }}>
+                {game.scores.A > game.scores.B ? (userKey === "A" ? "You won!" : `${partner?.name} won!`) : "It's a tie!"}
+              </div>
+              <Btn onClick={back} variant="ghost">
+                Back to Play
+              </Btn>
+            </div>
+          )}
+        </div>
+      </div>
+    </ScreenWrap>
+  );
+}
+
+function calculateWinner(board) {
+  const lines = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+  for (let line of lines) {
+    const [a, b, c] = line;
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
+  }
+  return null;
+}
+
+// ── WORDLE DUEL ────────────────────────────────────────────────────
+function WordleDuel({ me, partner, userKey, roomData, update, addN, back }) {
+  const pk = userKey === "A" ? "B" : "A";
+  const today = todayKey();
+  const gameKey = `wordle_${today}`;
+  const dailyWord = getDailyWordle().toUpperCase();
+  const game = roomData?.[gameKey] || {
+    A: { guesses: [], status: "playing" },
+    B: { guesses: [], status: "playing" },
+    revealed: false,
+    startedAt: Date.now(),
+  };
+
+  const myGame = game[userKey];
+  const [input, setInput] = useState("");
+  const VALID_WORDS = getPictionaryWords("general", 100); // Simplified for demo
+
+  const handleGuess = async () => {
+    if (input.length !== 5 || !VALID_WORDS.includes(input.toLowerCase())) return;
+    
+    const newGuesses = [...(myGame.guesses || []), input];
+    const won = input === dailyWord;
+    
+    const updated = {
+      ...game,
+      [userKey]: {
+        ...myGame,
+        guesses: newGuesses,
+        status: won ? "solved" : newGuesses.length >= 6 ? "lost" : "playing",
+      },
+    };
+
+    if (won) {
+      await addN("wordle", `${me?.name} solved today's Wordle in ${newGuesses.length} guesses!`);
+    }
+
+    if (updated[userKey].status !== "playing" && updated[pk].status !== "playing") {
+      updated.revealed = true;
+    }
+
+    await update({ [gameKey]: updated });
+    setInput("");
+  };
+
+  const getLetterColor = (letter, position, guess) => {
+    if (letter === dailyWord[position]) return C.sage;
+    if (dailyWord.includes(letter)) return C.gold;
+    return "rgba(26,10,5,0.2)";
+  };
+
+  return (
+    <ScreenWrap gradient={C.gradPlay}>
+      <div style={{ position: "relative", overflow: "hidden", paddingBottom: 80 }}>
+        <GradOrb size={280} top={-50} />
+        
+        <div style={{ padding: "22px 18px 0", position: "relative", zIndex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+            <BackBtn onClick={back} />
+            <div style={{ flex: 1 }}>
+              <h2 style={{ fontFamily: PF, fontSize: 22, fontWeight: 400, fontStyle: "italic", color: C.text }}>Wordle Duel</h2>
+              <div style={{ fontSize: 12, color: C.muted, fontFamily: LT }}>Same word, async solving</div>
+            </div>
+          </div>
+
+          {/* My guesses */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10, fontFamily: LT }}>Your guesses</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {myGame.guesses?.map((guess, i) => (
+                <div key={i} style={{ display: "flex", gap: 6 }}>
+                  {guess.split("").map((letter, j) => (
+                    <div
+                      key={j}
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 10,
+                        background: getLetterColor(letter, j, guess),
+                        border: `2px solid ${getLetterColor(letter, j, guess)}20`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: "#fff",
+                        fontFamily: PF,
+                      }}
+                    >
+                      {letter}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Input */}
+          {myGame.status === "playing" && (
+            <div style={{ marginBottom: 20 }}>
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value.toUpperCase().slice(0, 5))}
+                onKeyPress={(e) => e.key === "Enter" && handleGuess()}
+                placeholder="Enter 5-letter word"
+                style={{
+                  width: "100%",
+                  padding: "12px 16px",
+                  borderRadius: 14,
+                  border: `2px solid ${C.roseBd}`,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: LT,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  marginBottom: 12,
+                }}
+              />
+              <Btn onClick={handleGuess} disabled={input.length !== 5} style={{ background: C.gradRose, border: "none", color: "#fff" }}>
+                Guess ({myGame.guesses?.length || 0}/6)
+              </Btn>
+            </div>
+          )}
+
+          {myGame.status === "solved" && (
+            <div style={{ background: C.sageSoft, border: `1px solid ${C.sageBd}`, borderRadius: 16, padding: 14, textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.sage, fontFamily: LT }}>✓ You solved it in {myGame.guesses?.length} guesses!</div>
+            </div>
+          )}
+
+          {myGame.status === "lost" && (
+            <div style={{ background: "rgba(212,82,106,0.08)", border: `1px solid ${C.roseBd}`, borderRadius: 16, padding: 14, textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.rose, fontFamily: LT }}>Game over — 6 guesses used</div>
+            </div>
+          )}
+
+          {/* Partner status */}
+          <Card elevated>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, fontFamily: LT }}>
+              {partner?.name}
+            </div>
+            <div style={{ fontSize: 14, color: C.text, fontFamily: LT }}>
+              {game[pk].status === "playing"
+                ? `Still solving... (${game[pk].guesses?.length || 0}/6 guesses)`
+                : game[pk].status === "solved"
+                ? `Solved in ${game[pk].guesses?.length} guesses!`
+                : "Ran out of guesses"}
+            </div>
+          </Card>
+        </div>
+      </div>
+    </ScreenWrap>
+  );
+}
+
+// ── PICTIONARY ─────────────────────────────────────────────────────
+function Pictionary({ me, partner, userKey, roomData, update, addN, back }) {
+  const pk = userKey === "A" ? "B" : "A";
+  const today = todayKey();
+  const gameKey = `pictionary_${today}`;
+  const game = roomData?.[gameKey] || null;
+
+  const [lobbyMode, setLobbyMode] = useState(!game);
+  const [rounds, setRounds] = useState(0);
+  const [drawTime, setDrawTime] = useState(60);
+  const [gameState, setGameState] = useState("lobby"); // lobby|drawing|guessing|result
+
+  if (lobbyMode && !game) {
+    return (
+      <ScreenWrap gradient={C.gradPlay}>
+        <div style={{ position: "relative", overflow: "hidden" }}>
+          <GradOrb size={280} top={-50} />
+          <div style={{ padding: "32px 18px 0", position: "relative", zIndex: 1, textAlign: "center" }}>
+            <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 60, height: 60, borderRadius: "50%", background: C.gradRose, boxShadow: SHADOWS.lg, marginBottom: 16 }}>
+              <Pen size={30} color="#fff" weight="fill" />
+            </div>
+            <h2 style={{ fontFamily: PF, fontSize: 28, fontStyle: "italic", fontWeight: 400, color: C.text, marginBottom: 8 }}>Pictionary</h2>
+            <p style={{ fontSize: 14, color: C.muted, fontFamily: LT, marginBottom: 32 }}>Draw & guess together in real-time</p>
+
+            <div style={{ background: "rgba(255,255,255,0.95)", borderRadius: 20, padding: 24, textAlign: "left" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14, fontFamily: LT }}>Rounds</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
+                {[2, 3, 5].map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRounds(r)}
+                    style={{
+                      padding: "14px 0",
+                      borderRadius: 14,
+                      border: `2px solid ${rounds === r ? C.rose : C.border}`,
+                      background: rounds === r ? C.roseSoft : "transparent",
+                      cursor: "pointer",
+                      fontFamily: LT,
+                      fontSize: 16,
+                      fontWeight: 700,
+                      color: rounds === r ? C.rose : C.text,
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14, fontFamily: LT }}>Draw time</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                {[60, 90, 120, 180].map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setDrawTime(t)}
+                    style={{
+                      padding: "12px 0",
+                      borderRadius: 12,
+                      border: `2px solid ${drawTime === t ? C.rose : C.border}`,
+                      background: drawTime === t ? C.roseSoft : "transparent",
+                      cursor: "pointer",
+                      fontFamily: LT,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: drawTime === t ? C.rose : C.text,
+                    }}
+                  >
+                    {t}s
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 20 }}>
+              <Btn variant="ghost" onClick={back}>
+                Cancel
+              </Btn>
+              <Btn
+                onClick={async () => {
+                  const words = getPictionaryWords("couples", 1);
+                  const newGame = {
+                    rounds,
+                    drawTime,
+                    currentRound: 0,
+                    currentDrawer: "A",
+                    words: words,
+                    canvas: [],
+                    guesses: [],
+                    scores: { A: 0, B: 0 },
+                    status: "drawing",
+                    startedAt: Date.now(),
+                  };
+                  await update({ [gameKey]: newGame });
+                  setLobbyMode(false);
+                  setGameState("drawing");
+                }}
+                disabled={rounds === 0}
+                style={{ background: C.gradRose, border: "none", color: "#fff" }}
+              >
+                Start game
+              </Btn>
+            </div>
+          </div>
+        </div>
+      </ScreenWrap>
+    );
+  }
+
+  if (!game) return null;
+
+  return (
+    <ScreenWrap gradient={C.gradPlay}>
+      <div style={{ position: "relative", overflow: "hidden", paddingBottom: 80 }}>
+        <GradOrb size={280} top={-50} />
+        <div style={{ padding: "22px 18px 0", position: "relative", zIndex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+            <BackBtn onClick={() => { setLobbyMode(true); }} />
+            <div style={{ flex: 1 }}>
+              <h2 style={{ fontFamily: PF, fontSize: 20, fontWeight: 400, fontStyle: "italic", color: C.text }}>Round {game.currentRound + 1}/{game.rounds}</h2>
+              <div style={{ fontSize: 12, color: C.muted, fontFamily: LT }}>
+                {game.currentDrawer === userKey ? "You're drawing" : `${partner?.name} is drawing`}
+              </div>
+            </div>
+          </div>
+
+          {/* Scores */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+            {[["A", me?.name], ["B", partner?.name]].map(([k, n]) => (
+              <div key={k} style={{ background: "rgba(255,255,255,0.9)", borderRadius: 14, padding: "12px 16px", textAlign: "center" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, fontFamily: LT }}>{n}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: C.rose, fontFamily: PF }}>{game.scores?.[k] || 0}</div>
+              </div>
+            ))}
+          </div>
+
+          <Card elevated style={{ marginBottom: 20, textAlign: "center" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.muted, fontFamily: LT, marginBottom: 8 }}>Word to draw</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: C.rose, fontFamily: PF, letterSpacing: "0.1em" }}>
+              {game.currentDrawer === userKey ? game.words[0] : "????"}
+            </div>
+          </Card>
+
+          {/* Canvas placeholder */}
+          <div style={{ background: "rgba(255,255,255,0.95)", borderRadius: 16, aspectRatio: "1", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted }}>
+            <div style={{ textAlign: "center" }}>
+              <Pen size={32} color={C.muted} style={{ marginBottom: 8 }} />
+              <div style={{ fontSize: 12, fontFamily: LT }}>Canvas area (placeholder)</div>
+            </div>
+          </div>
+
+          {game.currentDrawer === userKey ? (
+            <Btn style={{ background: C.gradRose, border: "none", color: "#fff" }}>Done drawing</Btn>
+          ) : (
+            <div>
+              <input type="text" placeholder="Your guess..." style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: `1px solid ${C.border}`, marginBottom: 12, fontFamily: LT }} />
+              <Btn style={{ background: C.gradRose, border: "none", color: "#fff" }}>Submit guess</Btn>
+            </div>
+          )}
+        </div>
+      </div>
+    </ScreenWrap>
+  );
+}
+
 // ── ROOT APP ───────────────────────────────────────────────────────────────
 export default function App() {
   const [appState, setAppState] = useState("loading");
@@ -2858,9 +3366,12 @@ export default function App() {
         {screen==="grat"     &&<Gratitude     {...shared} back={backHome}/>}
         {screen==="bucket"   &&<BucketList    {...shared} back={backHome}/>}
         {screen==="memories" &&<MemoryJar     {...shared} back={backHome}/>}
-{screen==="dateplanner"  &&<DatePlannerScreen  {...shared} back={backHome}/>}
-{screen==="outfitplanner"&&<OutfitPlannerScreen {...shared} back={backHome}/>}
-{screen==="watchparty"   &&<WatchPartyScreen    {...shared} back={backHome}/>}
+        {screen==="dateplanner"  &&<DatePlannerScreen  {...shared} back={backHome}/>}
+        {screen==="outfitplanner"&&<OutfitPlannerScreen {...shared} back={backHome}/>}
+        {screen==="watchparty"   &&<WatchPartyScreen    {...shared} back={backHome}/>}
+        {screen==="tictactoe" &&<TicTacToe {...shared} back={backHome}/>}
+        {screen==="wordle" &&<WordleDuel {...shared} back={backHome}/>}
+        {screen==="pictionary" &&<Pictionary {...shared} back={backHome}/>}
         {!screen&&<>
           {tab==="home"    &&<HomeTab    {...shared} roomId={roomId} go={go}/>}
           {tab==="play"    &&<PlayTab    {...shared} go={go}/>}
