@@ -400,76 +400,292 @@ const googleLogin=async()=>{
 }
 
 // ── PROFILE SETUP ──────────────────────────────────────────────────────────
-function ProfileSetup({uid,existingName,existingPhoto,onDone}){
-  const [step,setStep]=useState(0);
-  const [name,setName]=useState(existingName||""); const [photo,setPhoto]=useState(existingPhoto||"");
-  const [birthday,setBirthday]=useState(""); const [timezone,setTimezone]=useState("");
-  const [status,setStatus]=useState(""); const [busy,setBusy]=useState(false);
-  const EMOJIS=["♥","🌙","⭐","🌸","🦋","🌊","☀️","🌿","🎵","✨"]; const [emoji,setEmoji]=useState("♥");
-  const save=async()=>{ setBusy(true); await updateDoc(doc(db,"users",uid),{name:name.trim(),photo,birthday,timezone,status:status.trim(),favoriteEmoji:emoji,onboardingDone:true}); onDone({name:name.trim(),photo,birthday,timezone,status:status.trim(),favoriteEmoji:emoji}); setBusy(false); };
-  const grads=["linear-gradient(160deg,#FFD6D6 0%,#FFF0EC 100%)","linear-gradient(160deg,#FFD0E8 0%,#FFF0F8 100%)","linear-gradient(160deg,#FFE0C8 0%,#FFF5EE 100%)"];
+function ProfileSetup({uid, existingName, existingPhoto, onDone}) {
+  const [name, setName] = useState(existingName || "");
+  const [photo, setPhoto] = useState(existingPhoto || "");
+  const [busy, setBusy] = useState(false);
+  const EMOJIS = ["♥","🌙","⭐","🌸","🦋","🌊","☀️","🌿","🎵","✨"];
+  const [emoji, setEmoji] = useState("♥");
+
+  const save = async () => {
+    if (!name.trim()) return;
+    setBusy(true);
+    await updateDoc(doc(db, "users", uid), {
+      name: name.trim(),
+      photo,
+      favoriteEmoji: emoji,
+      // Defaults for deferred fields
+      birthday: "",
+      timezone: "",
+      status: "",
+      onboardingDone: true,
+    });
+    onDone({ name: name.trim(), photo, favoriteEmoji: emoji });
+    setBusy(false);
+  };
+
   return (
-    <div style={{minHeight:"100vh",background:grads[step],transition:"background 0.5s ease"}}>
-      <GradOrb size={300} top={-60}/>
-      <div style={{padding:"48px 24px 0",position:"relative",zIndex:1}}>
-        <div style={{textAlign:"center",marginBottom:32}}>
-          <h2 style={{fontFamily:PF,fontSize:30,fontStyle:"italic",fontWeight:400,color:C.text}}>Set up your profile</h2>
-          <p style={{fontSize:13,color:"rgba(26,10,5,0.55)",fontFamily:LT,marginTop:6}}>{step+1} of 3</p>
-          <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:16}}>{[0,1,2].map(i=><div key={i} style={{height:4,borderRadius:2,background:i<=step?"rgba(26,10,5,0.5)":"rgba(26,10,5,0.15)",width:i<=step?32:12,transition:"all 0.3s"}}/>)}</div>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(160deg,#FFD6D6 0%,#FFF0EC 100%)", transition: "background 0.5s ease" }}>
+      <GradOrb size={300} top={-60} />
+      <div style={{ padding: "48px 24px 0", position: "relative", zIndex: 1 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, borderRadius: "50%", background: C.gradRose, boxShadow: SHADOWS.lg, marginBottom: 16 }} className="hb-float">
+            <Heart size={28} color="#fff" weight="fill" />
+          </div>
+          <h2 style={{ fontFamily: PF, fontSize: 28, fontStyle: "italic", fontWeight: 400, color: C.text }}>Who are you?</h2>
+          <p style={{ fontSize: 13, color: "rgba(26,10,5,0.55)", fontFamily: LT, marginTop: 8, lineHeight: 1.6 }}>Just the basics — you can fill in the rest later.</p>
         </div>
-        <div style={{background:C.surface,borderRadius:28,padding:28,boxShadow:SHADOWS.xl}}>
-          {step===0&&<div className="fade-rise"><div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:28,gap:12}}><PhotoUpload current={photo} onUpload={setPhoto} size={100}/><p style={{fontSize:12,color:C.muted,fontFamily:LT}}>Tap to add your photo</p></div><Field label="Your name" placeholder="What should your partner call you?" value={name} onChange={e=>setName(e.target.value)}/><div style={{marginBottom:20}}><div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10,fontFamily:LT}}>Your emoji</div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{EMOJIS.map(e=><button key={e} onClick={()=>setEmoji(e)} style={{width:42,height:42,borderRadius:13,border:`2px solid ${emoji===e?C.rose:C.border}`,background:emoji===e?C.roseSoft:"transparent",fontSize:20,cursor:"pointer",transition:"all 0.15s",boxShadow:emoji===e?SHADOWS.sm:"none"}}>{e}</button>)}</div></div><Btn disabled={!name.trim()} onClick={()=>setStep(1)}>Next →</Btn></div>}
-          {step===1&&<div className="fade-rise"><Field label="Your birthday" type="date" value={birthday} onChange={e=>setBirthday(e.target.value)}/><Field label="Your timezone" select value={timezone} onChange={e=>setTimezone(e.target.value)}><option value="">Select timezone</option>{TIMEZONES.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</Field><Btn onClick={()=>setStep(2)}>Next →</Btn><Btn variant="ghost" style={{marginTop:10}} onClick={()=>setStep(2)}>Skip for now</Btn></div>}
-          {step===2&&<div className="fade-rise"><div style={{textAlign:"center",marginBottom:24}}><div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:64,height:64,borderRadius:"50%",background:C.roseSoft,marginBottom:12}}><ChatTeardrop size={32} color={C.rose} weight="fill"/></div><p style={{fontFamily:PF,fontSize:20,fontStyle:"italic",color:C.text,lineHeight:1.6}}>What's on your mind right now?</p><p style={{fontSize:13,color:C.muted,fontFamily:LT,marginTop:8}}>Your partner sees this on their home screen</p></div><Field label="Status message" placeholder="e.g. Missing you today..." value={status} onChange={e=>setStatus(e.target.value)}/>{busy?<Spinner text="Setting up your profile..."/>:<Btn onClick={save}>Let's go →</Btn>}<Btn variant="ghost" style={{marginTop:10}} onClick={save}>Skip for now</Btn></div>}
+
+        <div style={{ background: C.surface, borderRadius: 28, padding: 28, boxShadow: SHADOWS.xl }}>
+          <div className="fade-rise">
+            {/* Photo */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 28, gap: 10 }}>
+              <PhotoUpload current={photo} onUpload={setPhoto} size={96} />
+              <p style={{ fontSize: 12, color: C.muted, fontFamily: LT }}>Tap to add your photo (optional)</p>
+            </div>
+
+            {/* Name */}
+            <Field
+              label="Your name"
+              placeholder="What should your partner call you?"
+              value={name}
+              onChange={e => setName(e.target.value)}
+            />
+
+            {/* Emoji */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 10, fontFamily: LT }}>Your emoji</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {EMOJIS.map(e => (
+                  <button key={e} onClick={() => setEmoji(e)} style={{ width: 42, height: 42, borderRadius: 13, border: `2px solid ${emoji === e ? C.rose : C.border}`, background: emoji === e ? C.roseSoft : "transparent", fontSize: 20, cursor: "pointer", transition: "all 0.15s", boxShadow: emoji === e ? SHADOWS.sm : "none" }}>{e}</button>
+                ))}
+              </div>
+            </div>
+
+            {busy
+              ? <Spinner text="Setting up your profile..." />
+              : <Btn disabled={!name.trim()} onClick={save}>Let's go →</Btn>
+            }
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// ── ROOM SETUP ─────────────────────────────────────────────────────────────
-function RoomSetup({uid,userData,onDone}){
-  const [tab,setTab]=useState("create"); const [code,setCode]=useState(""); const [anniversary,setAnniversary]=useState(""); const [coupleName,setCoupleName]=useState(""); const [distance,setDistance]=useState(""); const [busy,setBusy]=useState(false); const [err,setErr]=useState("");
-  const create=async()=>{ if(!anniversary.trim()){setErr("Anniversary date is required."); return;} setBusy(true); setErr(""); try{const c=await createRoom(uid,userData);await updateDoc(doc(db,"rooms",c),{anniversary,coupleName:coupleName.trim(),distance:distance.trim()});onDone(c,"A");}catch(e){setErr(e.message);} setBusy(false); };
-  const join=async()=>{ if(!code.trim()){setErr("Please enter the room code."); return;} setBusy(true); setErr(""); try{await joinRoom(uid,code.trim(),userData);onDone(code.trim().toUpperCase(),"B");}catch(e){setErr(e.message);} setBusy(false); };
+// ── ROOM SETUP — anniversary optional, invite link ─────────────────
+function RoomSetup({ uid, userData, onDone, inviteCode }) {
+  // If an invite code was passed via URL, start on join tab
+  const [tab, setTab] = useState(inviteCode ? "join" : "create");
+  const [code, setCode] = useState(inviteCode || "");
+  const [anniversary, setAnniversary] = useState("");
+  const [coupleName, setCoupleName] = useState("");
+  const [distance, setDistance] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const create = async () => {
+    setBusy(true); setErr("");
+    try {
+      const c = await createRoom(uid, userData);
+      // Anniversary is now optional
+      await updateDoc(doc(db, "rooms", c), {
+        anniversary: anniversary.trim() || "",
+        coupleName: coupleName.trim(),
+        distance: distance.trim(),
+      });
+      onDone(c, "A");
+    } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+
+  const join = async () => {
+    if (!code.trim()) { setErr("Please enter the room code."); return; }
+    setBusy(true); setErr("");
+    try {
+      await joinRoom(uid, code.trim(), userData);
+      onDone(code.trim().toUpperCase(), "B");
+    } catch (e) { setErr(e.message); }
+    setBusy(false);
+  };
+
   return (
-    <div style={{minHeight:"100vh",background:C.gradHero,position:"relative"}}>
-      <GradOrb size={350} top={-80}/>
-      <div style={{padding:"64px 24px 40px",position:"relative",zIndex:1,textAlign:"center",marginBottom:32}}>
-        <div className="hb-float" style={{marginBottom:20}}><div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:72,height:72,borderRadius:"50%",background:"rgba(255,255,255,0.92)",boxShadow:SHADOWS.xl}}><Heart size={36} color={C.rose} weight="fill"/></div></div>
-        <h2 style={{fontFamily:PF,fontSize:30,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:10}}>Connect with your person</h2>
-        <p style={{fontSize:15,color:"rgba(26,10,5,0.6)",fontFamily:LT,lineHeight:1.7}}>Create a room and share the code,<br/>or enter your partner's code.</p>
+    <div style={{ minHeight: "100vh", background: C.gradHero, position: "relative" }}>
+      <GradOrb size={350} top={-80} />
+      <div style={{ padding: "64px 24px 40px", position: "relative", zIndex: 1, textAlign: "center", marginBottom: 32 }}>
+        <div className="hb-float" style={{ marginBottom: 20 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 72, height: 72, borderRadius: "50%", background: "rgba(255,255,255,0.92)", boxShadow: SHADOWS.xl }}>
+            <Heart size={36} color={C.rose} weight="fill" />
+          </div>
+        </div>
+        <h2 style={{ fontFamily: PF, fontSize: 30, fontStyle: "italic", fontWeight: 400, color: C.text, marginBottom: 10 }}>Connect with your person</h2>
+        <p style={{ fontSize: 15, color: "rgba(26,10,5,0.6)", fontFamily: LT, lineHeight: 1.7 }}>
+          {inviteCode
+            ? `You were invited! Join with code ${inviteCode}.`
+            : "Create a room and share the link, or enter your partner's code."
+          }
+        </p>
       </div>
-      <div style={{background:C.surface,borderRadius:"32px 32px 0 0",padding:"32px 24px 60px",boxShadow:"0 -8px 40px rgba(212,82,106,0.12)",position:"relative",zIndex:1}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:28,background:"rgba(212,82,106,0.06)",borderRadius:16,padding:4}}>{[["create","Create a room"],["join","Join a room"]].map(([k,l])=>(<button key={k} onClick={()=>{setTab(k);setErr("");}} style={{padding:"12px 0",borderRadius:13,border:"none",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,background:tab===k?C.surface:"transparent",color:tab===k?C.rose:C.muted,boxShadow:tab===k?SHADOWS.sm:"none",transition:"all 0.2s"}}>{l}</button>))}</div>
-        {tab==="create"&&<div className="fade-rise"><Field label="Anniversary date *" type="date" value={anniversary} onChange={e=>setAnniversary(e.target.value)}/><Field label="Couple name (optional)" placeholder="e.g. Koustav & Ankita" value={coupleName} onChange={e=>setCoupleName(e.target.value)}/><Field label="Distance between you (optional)" placeholder="e.g. Bangalore ↔ London" value={distance} onChange={e=>setDistance(e.target.value)}/></div>}
-        {tab==="join"&&<div className="fade-rise"><Field label="Partner's room code" placeholder="ABC123" value={code} onChange={e=>setCode(e.target.value)} style={{textTransform:"uppercase",letterSpacing:"0.15em",fontWeight:700,fontSize:20}}/></div>}
-        <ErrBox msg={err}/>
-        {busy?<Spinner text={tab==="create"?"Creating your room...":"Joining room..."}/>:<Btn onClick={tab==="create"?create:join}>{tab==="create"?"Create room →":"Join room →"}</Btn>}
+
+      <div style={{ background: C.surface, borderRadius: "32px 32px 0 0", padding: "32px 24px 60px", boxShadow: "0 -8px 40px rgba(212,82,106,0.12)", position: "relative", zIndex: 1 }}>
+        {/* Tab toggle */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 28, background: "rgba(212,82,106,0.06)", borderRadius: 16, padding: 4 }}>
+          {[["create", "Create a room"], ["join", "Join a room"]].map(([k, l]) => (
+            <button key={k} onClick={() => { setTab(k); setErr(""); }} style={{ padding: "12px 0", borderRadius: 13, border: "none", cursor: "pointer", fontFamily: LT, fontSize: 13, fontWeight: 700, background: tab === k ? C.surface : "transparent", color: tab === k ? C.rose : C.muted, boxShadow: tab === k ? SHADOWS.sm : "none", transition: "all 0.2s" }}>{l}</button>
+          ))}
+        </div>
+
+        {/* Create tab */}
+        {tab === "create" && (
+          <div className="fade-rise">
+            <Field
+              label="Anniversary date (optional)"
+              type="date"
+              value={anniversary}
+              onChange={e => setAnniversary(e.target.value)}
+            />
+            <Field
+              label="Couple name (optional)"
+              placeholder="e.g. Koustav & Ankita"
+              value={coupleName}
+              onChange={e => setCoupleName(e.target.value)}
+            />
+            <Field
+              label="Distance between you (optional)"
+              placeholder="e.g. Bangalore ↔ London"
+              value={distance}
+              onChange={e => setDistance(e.target.value)}
+            />
+            <p style={{ fontSize: 12, color: C.muted, fontFamily: LT, marginBottom: 18, lineHeight: 1.6, textAlign: "center" }}>
+              You can add all of this later from your profile.
+            </p>
+          </div>
+        )}
+
+        {/* Join tab */}
+        {tab === "join" && (
+          <div className="fade-rise">
+            <Field
+              label="Partner's room code"
+              placeholder="ABC123"
+              value={code}
+              onChange={e => setCode(e.target.value)}
+              style={{ textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 700, fontSize: 20 }}
+            />
+          </div>
+        )}
+
+        <ErrBox msg={err} />
+        {busy
+          ? <Spinner text={tab === "create" ? "Creating your room..." : "Joining room..."} />
+          : <Btn onClick={tab === "create" ? create : join}>{tab === "create" ? "Create room →" : "Join room →"}</Btn>
+        }
       </div>
     </div>
   );
 }
 
-// ── WAITING ────────────────────────────────────────────────────────────────
-function Waiting({code,onSignOut,onLeave,uid}){
-  const [copied,setCopied]=useState(false);
-  const copy=()=>{ navigator.clipboard.writeText(code); setCopied(true); setTimeout(()=>setCopied(false),2200); };
+// ── WAITING — with shareable invite link ───────────────────────────
+function Waiting({ code, onSignOut, onLeave, uid }) {
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [shared, setShared] = useState(false);
+
+  const inviteLink = `${window.location.origin}?invite=${code}`;
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2200);
+  };
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(inviteLink);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2200);
+  };
+
+  const shareLink = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Join me on Heartbeat",
+          text: "I made us a space on Heartbeat — tap to join ♥",
+          url: inviteLink,
+        });
+        setShared(true);
+      } catch (e) {
+        // User cancelled share — fallback to copy
+        copyLink();
+      }
+    } else {
+      copyLink();
+    }
+  };
+
   return (
-    <div style={{minHeight:"100vh",background:C.gradHero,display:"flex",flexDirection:"column",alignItems:"center",padding:"72px 24px",textAlign:"center",position:"relative"}}>
-      <GradOrb size={350} top={-80}/>
-      <div style={{position:"relative",zIndex:1,width:"100%"}}>
-        <div className="hb-float" style={{marginBottom:28}}><div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:80,height:80,borderRadius:"50%",background:"rgba(255,255,255,0.92)",boxShadow:SHADOWS.xl}}><Heart size={40} color={C.rose} weight="fill"/></div></div>
-        <h2 style={{fontFamily:PF,fontSize:28,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:12}}>Room created!</h2>
-        <p style={{color:"rgba(26,10,5,0.6)",fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>Share this code with your partner.</p>
-        <Card elevated layer gradient={C.gradCard} style={{cursor:"pointer",marginBottom:28}} onClick={copy}>
-          <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:14,fontFamily:LT}}>Your room code</div>
-          <div style={{fontSize:52,fontWeight:700,color:C.rose,letterSpacing:"0.22em",fontFamily:PF}}>{code}</div>
-          <div style={{fontSize:13,color:C.rose,marginTop:14,fontWeight:700,fontFamily:LT,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{copied?<><CheckCircle size={16} color={C.sage} weight="fill"/> Copied!</>:<><CaretRight size={14} color={C.rose}/> Tap to copy</>}</div>
+    <div style={{ minHeight: "100vh", background: C.gradHero, display: "flex", flexDirection: "column", alignItems: "center", padding: "72px 24px", textAlign: "center", position: "relative" }}>
+      <GradOrb size={350} top={-80} />
+      <div style={{ position: "relative", zIndex: 1, width: "100%" }}>
+
+        <div className="hb-float" style={{ marginBottom: 28 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 80, height: 80, borderRadius: "50%", background: "rgba(255,255,255,0.92)", boxShadow: SHADOWS.xl }}>
+            <Heart size={40} color={C.rose} weight="fill" />
+          </div>
+        </div>
+
+        <h2 style={{ fontFamily: PF, fontSize: 28, fontStyle: "italic", fontWeight: 400, color: C.text, marginBottom: 8 }}>Room created!</h2>
+        <p style={{ color: "rgba(26,10,5,0.6)", fontSize: 15, lineHeight: 1.75, marginBottom: 32, fontFamily: LT }}>
+          Share the link or code with your partner.<br />They just need to tap it to join.
+        </p>
+
+        {/* ── INVITE LINK — primary CTA ── */}
+        <div style={{ background: "rgba(255,255,255,0.95)", borderRadius: 24, padding: "20px 22px", marginBottom: 14, boxShadow: SHADOWS.lg, border: `1px solid ${C.roseBd}` }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 10, fontFamily: LT }}>Invite link</div>
+          <div style={{ fontSize: 13, color: C.rose, fontFamily: LT, fontWeight: 600, wordBreak: "break-all", marginBottom: 14, lineHeight: 1.5 }}>
+            {inviteLink}
+          </div>
+          <button onClick={shareLink} style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            width: "100%", padding: "13px 20px", borderRadius: 16,
+            background: C.gradRose, border: "none", cursor: "pointer",
+            fontFamily: LT, fontSize: 14, fontWeight: 700, color: "#fff",
+            boxShadow: SHADOWS.md, transition: "all 0.2s",
+          }}>
+            {copiedLink || shared
+              ? <><CheckCircle size={16} color="#fff" weight="fill" /> {shared ? "Shared!" : "Link copied!"}</>
+              : <><Envelope size={16} color="#fff" weight="fill" /> Send invite link</>
+            }
+          </button>
+        </div>
+
+        {/* ── ROOM CODE — secondary ── */}
+        <Card elevated layer gradient={C.gradCard} style={{ cursor: "pointer", marginBottom: 28 }} onClick={copyCode}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10, fontFamily: LT }}>Or share the code</div>
+          <div style={{ fontSize: 48, fontWeight: 700, color: C.rose, letterSpacing: "0.22em", fontFamily: PF }}>{code}</div>
+          <div style={{ fontSize: 13, color: C.rose, marginTop: 12, fontWeight: 700, fontFamily: LT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            {copiedCode
+              ? <><CheckCircle size={16} color={C.sage} weight="fill" /> Copied!</>
+              : <><CaretRight size={14} color={C.rose} /> Tap to copy code</>
+            }
+          </div>
         </Card>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,color:"rgba(26,10,5,0.5)",fontSize:14,marginBottom:48,fontFamily:LT}}><div className="hb-spin"><Sparkle size={18} color={C.rose}/></div>Waiting for your partner...</div>
-        <Btn variant="glass" style={{marginBottom:12}} onClick={async()=>{ await updateDoc(doc(db,"users",uid),{roomId:null,userKey:null,onboardingDone:true}); onLeave(); }}>Join a different room instead →</Btn>
-        <button onClick={onSignOut} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"rgba(26,10,5,0.4)",fontFamily:LT}}>Sign out</button>
+
+        {/* Waiting indicator */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: "rgba(26,10,5,0.5)", fontSize: 14, marginBottom: 36, fontFamily: LT }}>
+          <div className="hb-spin"><Sparkle size={18} color={C.rose} /></div>
+          Waiting for your partner...
+        </div>
+
+        <Btn variant="glass" style={{ marginBottom: 12 }} onClick={async () => {
+          await updateDoc(doc(db, "users", uid), { roomId: null, userKey: null, onboardingDone: true });
+          onLeave();
+        }}>
+          Join a different room instead →
+        </Btn>
+        <button onClick={onSignOut} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "rgba(26,10,5,0.4)", fontFamily: LT }}>
+          Sign out
+        </button>
       </div>
     </div>
   );
@@ -3253,6 +3469,7 @@ function Pictionary({ me, partner, userKey, roomData, update, addN, back }) {
 // ── ROOT APP ───────────────────────────────────────────────────────────────
 export default function App() {
   const [appState, setAppState] = useState("loading");
+  const inviteCode = new URLSearchParams(window.location.search).get("invite");
   const [user,     setUser    ] = useState(null);
   const [myUser,   setMyUser  ] = useState(null);
   const [roomId,   setRoomId  ] = useState(null);
@@ -3332,7 +3549,8 @@ export default function App() {
   if(showOnb&&appState==="profile-setup") return <div style={{background:C.bg}}><style>{STYLES}</style><Onboarding onDone={()=>setShowOnb(false)}/></div>;
   if(appState==="login") return <div style={{background:C.bg}}><style>{STYLES}</style><Login onLogin={u=>{setUser(u);setAppState("profile-setup");}}/></div>;
   if(appState==="profile-setup") return <div style={{background:C.bg}}><style>{STYLES}</style><ProfileSetup uid={user?.uid} existingName={myUser?.name||user?.displayName||""} existingPhoto={myUser?.photo||user?.photoURL||""} onDone={async ud=>{ setMyUser(prev=>({...prev,...ud})); const snap=await getDoc(doc(db,"users",user.uid)); if(snap.exists()&&snap.data().roomId){ setRoomId(snap.data().roomId); setUserKey(snap.data().userKey); } else setAppState("room-setup"); }}/></div>;
-  if(appState==="room-setup") return <div style={{background:C.bg}}><style>{STYLES}</style><RoomSetup uid={user?.uid} userData={{name:myUser?.name||"",photo:myUser?.photo||"",mood:"🥰"}} onDone={(rid,uk)=>{ setRoomId(rid); setUserKey(uk); }}/></div>;
+  if(appState==="room-setup") return <div style={{background:C.bg}}><style>{STYLES}</style><RoomSetup uid={user?.uid} userData={{name:myUser?.name||"",photo:myUser?.photo||"",mood:"🥰"}}
+  inviteCode={inviteCode} onDone={(rid,uk)=>{ setRoomId(rid); setUserKey(uk); }}/></div>;
   if(appState==="waiting") return <div style={{background:C.bg}}><style>{STYLES}</style><Waiting code={roomId} uid={user?.uid} onSignOut={signOut} onLeave={()=>{ setRoomId(null); setUserKey(null); setAppState("room-setup"); }}/></div>;
 
   return (
