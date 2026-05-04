@@ -1563,6 +1563,43 @@ function HistoryCard({plan,accentColor,accentBd,gradCard,onMarkDone,me}){
 }
 
 // ── OUTFIT PLANNER SCREEN ──────────────────────────────────────────
+const AMAZON_TAG = "heartbeat054-21";
+
+const PLATFORMS_INDIA = [
+  {name:"Amazon",color:"#FF9900",bg:"rgba(255,153,0,0.10)",bd:"rgba(255,153,0,0.25)",getUrl:(query)=>`https://www.amazon.in/s?k=${encodeURIComponent(query)}&tag=${AMAZON_TAG}`,logo:"A"},
+  {name:"Myntra",color:"#FF3F6C",bg:"rgba(255,63,108,0.08)",bd:"rgba(255,63,108,0.20)",getUrl:(query)=>`https://www.myntra.com/${encodeURIComponent(query.split(" ").join("-"))}`,logo:"M"},
+  {name:"Ajio",color:"#001845",bg:"rgba(0,24,69,0.06)",bd:"rgba(0,24,69,0.15)",getUrl:(query)=>`https://www.ajio.com/search/?text=${encodeURIComponent(query)}`,logo:"Aj"},
+  {name:"Nykaa",color:"#FC2779",bg:"rgba(252,39,121,0.08)",bd:"rgba(252,39,121,0.20)",getUrl:(query)=>`https://www.nykaafashion.com/search?q=${encodeURIComponent(query)}`,logo:"N"},
+];
+
+const PLATFORMS_INTL = [
+  {name:"Amazon",color:"#FF9900",bg:"rgba(255,153,0,0.10)",bd:"rgba(255,153,0,0.25)",getUrl:(query)=>`https://www.amazon.com/s?k=${encodeURIComponent(query)}&tag=${AMAZON_TAG}`,logo:"A"},
+  {name:"ASOS",color:"#2D2D2D",bg:"rgba(45,45,45,0.06)",bd:"rgba(45,45,45,0.15)",getUrl:(query)=>`https://www.asos.com/search/?q=${encodeURIComponent(query)}`,logo:"AS"},
+  {name:"H&M",color:"#E50010",bg:"rgba(229,0,16,0.06)",bd:"rgba(229,0,16,0.15)",getUrl:(query)=>`https://www2.hm.com/en_gb/search-results.html?q=${encodeURIComponent(query)}`,logo:"H"},
+  {name:"Zara",color:"#1A1A1A",bg:"rgba(26,26,26,0.06)",bd:"rgba(26,26,26,0.15)",getUrl:(query)=>`https://www.zara.com/us/en/search?searchTerm=${encodeURIComponent(query)}`,logo:"Z"},
+];
+
+function ShoppingRow({piece,timezone}){
+  const isIndia=timezone==="Asia/Kolkata"||timezone==="Asia/Colombo"||timezone==="Asia/Dhaka";
+  const platforms=isIndia?PLATFORMS_INDIA:PLATFORMS_INTL;
+  return (
+    <div style={{marginBottom:18}}>
+      <div style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:LT,marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
+        <span style={{color:C.purple}}>✦</span> {piece}
+      </div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {platforms.map(p=>(
+          <a key={p.name} href={p.getUrl(piece)} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:6,background:p.bg,border:`1px solid ${p.bd}`,borderRadius:20,padding:"6px 12px",textDecoration:"none",fontSize:12,fontWeight:700,color:p.color,fontFamily:LT,transition:"all 0.2s",whiteSpace:"nowrap"}}
+            onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=SHADOWS.sm;}}
+            onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
+            <span style={{width:18,height:18,borderRadius:"50%",background:p.color,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{p.logo}</span>
+            {p.name}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
 function OutfitPlannerScreen({me,partner,userKey,roomData,update,addN,back}){
   const pk=userKey==="A"?"B":"A";
   const [mode,setMode]=useState(""); // forme|forpartner|react
@@ -1707,9 +1744,17 @@ Return ONLY this JSON:
                 <div style={{fontSize:12,color:"rgba(255,255,255,0.7)",fontFamily:LT}}>Mood: {result.mood}</div>
               </div>
               <Card elevated style={{marginBottom:14}}>
-                <div style={{fontSize:11,fontWeight:700,color:outfitColor,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10,fontFamily:LT}}>Key pieces</div>
-                {result.keyPieces?.map((p,i)=><div key={i} style={{fontSize:14,color:C.text,fontFamily:LT,marginBottom:6,display:"flex",gap:8}}><span style={{color:outfitColor}}>✦</span>{p}</div>)}
-              </Card>
+  <div style={{fontSize:11,fontWeight:700,color:outfitColor,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:14,fontFamily:LT,display:"flex",alignItems:"center",gap:6}}>
+    <Sparkle size={12} color={outfitColor} weight="fill"/>
+    Key pieces — tap to shop
+  </div>
+  {result.keyPieces?.map((p,i)=>(
+    <ShoppingRow key={i} piece={p} timezone={myUser?.timezone||""}/>
+  ))}
+  <div style={{fontSize:10,color:C.muted,fontFamily:LT,marginTop:8,fontStyle:"italic",borderTop:`1px solid ${C.border}`,paddingTop:8}}>
+    Links open in your browser. Amazon links support Heartbeat via affiliate commission at no extra cost to you.
+  </div>
+</Card>
               <Card elevated style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:700,color:outfitColor,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10,fontFamily:LT}}>Colour palette</div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{result.colours?.map((col,i)=><span key={i} style={{background:C.purpleSoft,color:outfitColor,padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:700,fontFamily:LT,border:`1px solid ${outfitBd}`}}>{col}</span>)}</div>
@@ -1752,7 +1797,9 @@ function OutfitCard({card,me,partner,userKey,outfitColor,outfitBd,gradOutfit,onR
         <div style={{fontSize:16,fontWeight:700,color:"#fff",fontFamily:PF,fontStyle:"italic"}}>{card.result.title}</div>
       </div>
       <div style={{padding:"14px 18px"}}>
-        {card.result.keyPieces?.map((p,i)=><div key={i} style={{fontSize:13,color:C.text,fontFamily:LT,marginBottom:5,display:"flex",gap:8}}><span style={{color:outfitColor}}>✦</span>{p}</div>)}
+      {card.result.keyPieces?.map((p,i)=>(
+  <ShoppingRow key={i} piece={p} timezone={"Asia/Kolkata"}/>
+))}
         <div style={{fontSize:13,color:C.muted,fontFamily:LT,lineHeight:1.6,marginTop:10}}>{card.result.styling}</div>
         {card.note&&<div style={{fontSize:12,color:outfitColor,fontFamily:PF,fontStyle:"italic",marginTop:10}}>"{card.note}"</div>}
         {card.revisions?.length>0&&<div style={{fontSize:11,color:C.muted,fontFamily:LT,marginTop:8}}>Revised {card.revisions.length} time{card.revisions.length>1?"s":""}</div>}
