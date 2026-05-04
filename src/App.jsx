@@ -1600,7 +1600,7 @@ function ShoppingRow({piece,timezone}){
     </div>
   );
 }
-function OutfitPlannerScreen({me,partner,userKey,roomData,update,addN,back}){
+function OutfitPlannerScreen({me,partner,myUser,userKey,roomData,update,addN,back}){
   const pk=userKey==="A"?"B":"A";
   const [mode,setMode]=useState(""); // forme|forpartner|react
   const [occasion,setOccasion]=useState("");
@@ -1692,7 +1692,7 @@ Return ONLY this JSON:
                 <div style={{marginBottom:24}}>
                   <div style={{fontSize:11,fontWeight:700,color:outfitColor,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>From {partner?.name} ✨</div>
                   {pendingForMe.map(card=>(
-                    <OutfitCard key={card.id} card={card} me={me} partner={partner} userKey={userKey} outfitColor={outfitColor} outfitBd={outfitBd} gradOutfit={gradOutfit} onRequestChange={requestChange} loading={loading}/>
+                   <OutfitCard key={card.id} card={card} me={me} partner={partner} myUser={myUser} userKey={userKey} outfitColor={outfitColor} outfitBd={outfitBd} gradOutfit={gradOutfit} onRequestChange={requestChange} loading={loading}/>
                   ))}
                 </div>
               )}
@@ -1777,7 +1777,7 @@ Return ONLY this JSON:
 }
 
 // ── OUTFIT CARD ────────────────────────────────────────────────────
-function OutfitCard({card,me,partner,userKey,outfitColor,outfitBd,gradOutfit,onRequestChange,loading}){
+function OutfitCard({card,me,partner,myUser,userKey,outfitColor,outfitBd,gradOutfit,onRequestChange,loading}){
   const [expanded,setExpanded]=useState(true);
   const [changeNote,setChangeNote]=useState("");
   const [requesting,setRequesting]=useState(false);
@@ -1798,7 +1798,7 @@ function OutfitCard({card,me,partner,userKey,outfitColor,outfitBd,gradOutfit,onR
       </div>
       <div style={{padding:"14px 18px"}}>
       {card.result.keyPieces?.map((p,i)=>(
-  <ShoppingRow key={i} piece={p} timezone={"Asia/Kolkata"}/>
+  <ShoppingRow key={i} piece={p} timezone={myUser?.timezone||""}/>
 ))}
         <div style={{fontSize:13,color:C.muted,fontFamily:LT,lineHeight:1.6,marginTop:10}}>{card.result.styling}</div>
         {card.note&&<div style={{fontSize:12,color:outfitColor,fontFamily:PF,fontStyle:"italic",marginTop:10}}>"{card.note}"</div>}
