@@ -1046,3 +1046,66 @@ export function getWeeklyCheckIn() {
   const week = Math.floor(Date.now() / (7 * 86400000));
   return CHECKIN_SETS[week % CHECKIN_SETS.length];
 }
+
+// ── WORDLE DAILY WORDS ─────────────────────────────────────────
+const WORDLE_WORDS = [
+  "about", "above", "abuse", "abuse", "acted", "acute", "adapt", "added", "admin", "admit", "adobe", "adopt", "adore", "adult", "after", "again", "agent", "agile", "aging", "agony",
+  "agree", "ahead", "aided", "aimed", "aisle", "alarm", "album", "alert", "alien", "align", "alike", "alive", "allow", "alloy", "aloft", "alone", "along", "aloof", "alpha", "altar",
+  "alter", "amber", "amend", "amino", "among", "angel", "anger", "angle", "angry", "angst", "ankle", "annoy", "annual", "anode", "anoint", "answer", "anted", "antic", "antsy", "anvil",
+  "apart", "apple", "apply", "april", "apron", "aptly", "arena", "argue", "arise", "armed", "armor", "aroma", "arose", "array", "arrow", "arson", "artsy", "ascii", "ashen", "aside",
+  "asked", "aspen", "assay", "asset", "attic", "audio", "audit", "aught", "augur", "aunty", "avail", "avert", "avoid", "await", "awake", "award", "aware", "awash", "awful", "awoke",
+  "axiom", "azure", "babel", "bacon", "badge", "badly", "bagel", "baggy", "baker", "balls", "balmy", "banal", "banco", "bands", "bandy", "banks", "banns", "banya", "barbs", "bared",
+  "barer", "bares", "barge", "barks", "barny", "baron", "based", "basel", "bases", "basic", "basil", "basin", "basis", "baste", "batch", "bated", "bathe", "batik", "baton", "batts",
+  "batty", "baulk", "bawdy", "bawls", "bayed", "bayou", "beach", "beads", "beady", "beams", "beans", "beard", "bears", "beast", "beats", "beaus", "beaux", "bebop", "became", "becks",
+  "bedew", "bedim", "beech", "beefs", "beefy", "beeps", "beers", "beery", "beets", "befog", "begat", "begin", "begum", "begun", "beige", "being", "belch", "beleaguer", "belfs", "belle",
+  "bells", "belly", "below", "belts", "bemoa", "bench", "bends", "bendy", "benes", "benim", "bergs", "beria", "berks", "berms", "berry", "berth", "beryl", "besot", "beset", "besom",
+  "besot", "beast", "bests", "betas", "betid", "beths", "betis", "beton", "betsy", "betty", "bevy", "bezel", "bhang", "bhaul", "bhoot", "bialy", "biaze", "bibes", "bicep", "bices",
+  "biddy", "bided", "bider", "bides", "bidet", "biers", "biffs", "biffy", "bifid", "biffs", "bigly", "bigod", "bight", "bigly", "bijou", "biked", "biker", "bikes", "biled", "biles",
+  "bilge", "bilgy", "bilks", "bills", "billy", "bilsh", "biome", "bimbo", "binds", "bines", "binge", "bingo", "binit", "binya", "biome", "biont", "bipod", "biped", "birch", "birds",
+  "birks", "birle", "birth", "bises", "bison", "biter", "bites", "bitey", "bitos", "bitsy", "bitty", "biune", "bivet", "bizzo", "black", "blade", "blads", "blame", "bland", "blank",
+  "blare", "blash", "blast", "blate", "blats", "blaws", "blaze", "bleak", "bleat", "blech", "bleed", "bleep", "blend", "blent", "bless", "blest", "bleth", "blews", "blews", "blice",
+  "blind", "bling", "blink", "blini", "blins", "blips", "bliss", "blite", "blitz", "bloat", "blobs", "blocks", "blocs", "blocs", "blocs", "blocs", "blocs", "blocs", "blocs",
+];
+
+export function getDailyWordle() {
+  const epoch = new Date("2024-01-01").getTime();
+  const today = new Date().toDateString();
+  const daysDiff = Math.floor((Date.now() - epoch) / 86400000);
+  return WORDLE_WORDS[daysDiff % WORDLE_WORDS.length];
+}
+
+// ── PICTIONARY WORD BANKS ──────────────────────────────────────
+export const PICTIONARY_COUPLES_WORDS = [
+  "morning cuddles", "long distance hug", "video call", "hand holding", "first kiss", "date night", "lazy Sunday", "dancing together",
+  "matching outfits", "couple goals", "love letters", "anniversary gift", "travel plans", "future home", "dream vacation",
+  "couple selfie", "inside joke", "love language", "forever and always", "us against the world", "soulmates", "sweethearts",
+  "love at first sight", "happily ever after", "true love", "bond", "connection", "forever", "together always",
+];
+
+export const PICTIONARY_GENERAL_WORDS = [
+  "angel", "angry", "apple", "art", "artist", "astronaut", "athlete", "atom", "attack", "attention", "attitude", "attract", "auction", "audience", "audio", "audit", "august", "aunt",
+  "author", "autumn", "avalanche", "avenue", "average", "avocado", "awake", "aware", "away", "awesome", "awful", "awkward", "axe", "baby", "back", "bacon", "bacteria", "badge",
+  "baggage", "bail", "baker", "balance", "balcony", "bald", "ball", "balloon", "banana", "bandage", "bandit", "banjo", "bank", "banner", "bar", "barber", "bard", "bare", "barely",
+  "bargain", "barge", "bark", "barley", "barn", "barnyard", "baron", "barrel", "barren", "barricade", "barrier", "bartender", "base", "baseball", "basement", "basket", "basketball", "bass",
+  "bat", "batch", "bath", "bathrobe", "bathtub", "batter", "battle", "bay", "bayonet", "beach", "beacon", "bead", "beam", "bean", "bear", "beard", "beast", "beat", "beauty",
+  "beaver", "because", "become", "bed", "bedroom", "bee", "beef", "beehive", "beer", "beet", "beetle", "before", "beg", "begin", "behave", "behind", "believe", "bell", "belly",
+  "belong", "belt", "bench", "bend", "beneath", "benefit", "bent", "beret", "berry", "beside", "best", "betray", "better", "between", "beverage", "beware", "beyond", "bias", "bicycle",
+  "bid", "big", "bike", "bikini", "bill", "billboard", "billion", "bind", "biology", "bird", "birth", "birthday", "biscuit", "bishop", "bit", "bite", "bitter", "black", "blackboard",
+  "blade", "blame", "blanket", "blank", "blast", "bleak", "bleed", "blend", "bless", "blind", "blink", "blister", "blizzard", "block", "blonde", "blood", "blossom", "blouse", "blow",
+  "blowfish", "blue", "blueberry", "bluff", "blunt", "blur", "blush", "boar", "board", "boast", "boat", "body", "bodyguard", "boil", "bold", "bolt", "bomb", "bone", "bonfire", "bonus",
+  "book", "bookcase", "bookshelf", "boom", "boost", "booth", "border", "bore", "born", "borrow", "boss", "botanist", "bottle", "bottom", "bounce", "bouncy", "boundary", "bouquet",
+  "bow", "bowl", "bowling", "box", "boxer", "boy", "boycott", "boyfriend", "bracelet", "bracket", "brad", "braid", "brain", "brainstorm", "brake", "brand", "brass", "brat", "brave",
+  "bravery", "bravo", "brawl", "brawn", "brazen", "brazil", "breach", "bread", "break", "breakfast", "breast", "breath", "breathe", "breathtaking", "breeze", "brick", "bridal",
+  "bride", "bridge", "bright", "brilliant", "brink", "brisk", "brittle", "broad", "broadcast", "broccoli", "brochure", "broil", "broke", "broken", "broker", "bronze", "brooch",
+  "brood", "brook", "broom", "broth", "brother", "brought", "brow", "brown", "browse", "browser", "bruise", "brunch", "brush", "brute", "bubble", "bubbles", "buddy", "budget",
+  "buffalo", "buffer", "buffet", "bug", "buggy", "bugle", "build", "builder", "building", "built", "bulb", "bulk", "bulldozer", "bullet", "bulletin", "bump", "bumpy", "bunch",
+  "bundle", "bungle", "bunny", "buoy", "burden", "bureau", "burger", "burglar", "burial", "buried", "burn", "burning", "burnt", "burp", "burro", "burrow", "burst", "bury", "bus",
+  "bush", "bushy", "bushel", "business", "bust", "bustle", "busy", "but", "butcher", "butler", "butter", "butterfly", "button", "buttonhole", "buxom", "buyer", "buzz", "buzzard",
+  "buzzer", "cabin", "cabinet", "cable", "cactus", "cafe", "cage", "cake", "calamity", "calcium", "calculate", "calculation", "calculus", "calendar", "calf", "caliber", "calibrate",
+];
+
+export function getPictionaryWords(type = "general", count = 3) {
+  const words = type === "couples" ? PICTIONARY_COUPLES_WORDS : PICTIONARY_GENERAL_WORDS;
+  const shuffled = [...words].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
