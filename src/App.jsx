@@ -679,7 +679,7 @@ const sendHeart=async()=>{
           <div style={{breakInside:"avoid",marginBottom:12}} className="s3">
             <div className="card-hover" style={{background:"linear-gradient(135deg,rgba(212,82,106,0.10),rgba(255,180,170,0.15))",borderRadius:20,padding:"18px 16px",boxShadow:SHADOWS.sm,border:`1px solid ${C.roseBd}`}}>
               <CalendarBlank size={20} color={C.rose} weight="fill" style={{marginBottom:8}}/>
-              <div style={{ fontSize: 28, fontWeight: 700, color: C.rose, fontFamily: PF, lineHeight: 1 }}>{days}</div>
+              <div style={{fontSize:28,fontWeight:700,color:C.rose,fontFamily:PF,lineHeight:1}}>{days}</div>
               <div style={{fontSize:11,color:C.muted,fontFamily:LT,marginTop:4}}>days until you're together</div>
             </div>
           </div>
@@ -806,7 +806,7 @@ function PlayTab({me,partner,userKey,roomData,update,addN,go}){
           <button onClick={()=>{setPlayMode("connect");setActivecat("all");}} style={{flex:1,padding:"10px 0",borderRadius:24,border:"none",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,background:playMode==="connect"?C.gradRose:"rgba(255,255,255,0.8)",color:playMode==="connect"?"#fff":C.muted,boxShadow:playMode==="connect"?SHADOWS.md:SHADOWS.sm,transition:"all 0.25s"}}>
             Connect
           </button>
-          <button onClick={()=>setPlayMode("games");} style={{flex:1,padding:"10px 0",borderRadius:24,border:"none",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,background:playMode==="games"?C.gradRose:"rgba(255,255,255,0.8)",color:playMode==="games"?"#fff":C.muted,boxShadow:playMode==="games"?SHADOWS.md:SHADOWS.sm,transition:"all 0.25s"}}>
+          <button onClick={()=>setPlayMode("games")} style={{flex:1,padding:"10px 0",borderRadius:24,border:"none",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,background:playMode==="games"?C.gradRose:"rgba(255,255,255,0.8)",color:playMode==="games"?"#fff":C.muted,boxShadow:playMode==="games"?SHADOWS.md:SHADOWS.sm,transition:"all 0.25s"}}>
             Games
           </button>
         </div>
@@ -838,7 +838,7 @@ function PlayTab({me,partner,userKey,roomData,update,addN,go}){
                 boxShadow:g.featured?SHADOWS.xl:SHADOWS.lg,
                 position:"relative",overflow:"hidden",
                 transition:"all 0.22s cubic-bezier(0.22,1,0.36,1)"
-              }}
+             }}
                 onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow=g.featured?"0 36px 72px rgba(212,82,106,0.22)":"0 24px 52px rgba(212,82,106,0.16)";}}
                 onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow=g.featured?SHADOWS.xl:SHADOWS.lg;}}
                 onMouseDown={e=>e.currentTarget.style.transform="scale(0.97)"}
@@ -2805,8 +2805,8 @@ function TicTacToe({ me, partner, userKey, roomData, update, addN, back }) {
       }
       
       if (updatedGame.currentRound >= 5) {
-        const winner = updatedGame.scores.A > updatedGame.scores.B ? "A" : "B";
-        await addN("tictactoe", `🏆 ${winner === userKey ? "You won" : "Partner won"} best of 5!`);
+        const sessionWinner = updatedGame.scores.A > updatedGame.scores.B ? "A" : "B";
+await addN("tictactoe", `🏆 ${sessionWinner === userKey ? "You won" : "Partner won"} best of 5!`);
       } else {
         updatedGame.board = Array(9).fill(null);
         updatedGame.xNext = updatedGame.currentRound % 2 === 0;
