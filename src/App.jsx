@@ -363,16 +363,14 @@ else {
 const googleLogin=async()=>{
   setBusy(true); setErr("");
   try{
-    const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if(isMobile){
-      const {signInWithRedirect}=await import("firebase/auth");
-      await signInWithRedirect(auth,googleProvider);
-      return;
-    }
     const result=await signInWithPopup(auth,googleProvider);
     const u=result.user;
     const snap=await getDoc(doc(db,"users",u.uid));
-    if(!snap.exists()) await setDoc(doc(db,"users",u.uid),{name:u.displayName||"",photo:u.photoURL||"",status:"",timezone:"",birthday:"",favoriteEmoji:"♥",roomId:null,userKey:null,onboardingDone:false});
+    if(!snap.exists()) await setDoc(doc(db,"users",u.uid),{
+      name:u.displayName||"",photo:u.photoURL||"",
+      status:"",timezone:"",birthday:"",
+      favoriteEmoji:"♥",roomId:null,userKey:null,onboardingDone:false
+    });
     onLogin(u);
   }catch(e){
     if(e.code!=="auth/popup-closed-by-user") setErr(e.message);
@@ -1593,53 +1591,19 @@ export default function App() {
   const [partnerUser,setPartnerUser] = useState(null);
 
   useEffect(()=>{
-  let redirectUser = null;
-
-  const handleRedirect = import("firebase/auth").then(({getRedirectResult})=>
-    getRedirectResult(auth).then(async result=>{
-      console.log("REDIRECT RESULT:", JSON.stringify(result?.user?.email));
-      if(!result?.user){ console.log("NO REDIRECT USER"); return; }
-      console.log("REDIRECT USER FOUND:", result.user.email);
-      redirectUser = result.user;
-      setUser(result.user);
-      const u = result.user;
-      const snap = await getDoc(doc(db,"users",u.uid));
-      if(!snap.exists()) await setDoc(doc(db,"users",u.uid),{
-        name:u.displayName||"",photo:u.photoURL||"",
-        status:"",timezone:"",birthday:"",
-        favoriteEmoji:"♥",roomId:null,userKey:null,onboardingDone:false
-      });
-      const freshSnap = await getDoc(doc(db,"users",u.uid));
-      if(freshSnap.exists()&&freshSnap.data().roomId){
-        setMyUser(freshSnap.data());
-        setRoomId(freshSnap.data().roomId);
-        setUserKey(freshSnap.data().userKey);
-        requestNotifPermission(u.uid);
-      } else {
-        setMyUser(freshSnap.data()||{name:u.displayName||"",photo:u.photoURL||""});
-        if(!freshSnap.exists()||!freshSnap.data().onboardingDone) setShowOnb(true);
-        setAppState("profile-setup");
-      }
-    }).catch(e=>console.error("Redirect error:",e))
-  );
-
-  const unsub = onAuthStateChanged(auth, async u=>{
-    console.log("AUTH STATE:", u?.email||"null", "redirectUser:", !!redirectUser);
-    await handleRedirect.catch(()=>{});
-    if(redirectUser){ console.log("REDIRECT HANDLED - SKIPPING"); return; }
+  const unsub=onAuthStateChanged(auth, async u=>{
     if(!u){ setAppState("login"); return; }
     setUser(u);
-    const snap = await getDoc(doc(db,"users",u.uid));
+    const snap=await getDoc(doc(db,"users",u.uid));
     if(!snap.exists()||!snap.data().roomId){
       if(!snap.exists()||!snap.data().onboardingDone) setShowOnb(true);
       setMyUser(snap.data()||{name:u.displayName||"",photo:u.photoURL||""});
       setAppState("profile-setup"); return;
     }
-    const ud = snap.data();
+    const ud=snap.data();
     setMyUser(ud); setRoomId(ud.roomId); setUserKey(ud.userKey);
     requestNotifPermission(u.uid);
   });
-
   return unsub;
 },[]);
 
