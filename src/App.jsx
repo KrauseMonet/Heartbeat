@@ -3,7 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from "firebase/firestore";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as fbSignOut, GoogleAuthProvider, signInWithPopup, deleteUser } from "firebase/auth";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
-import { Heart, GameController, Leaf, UserCircle, Bell, ArrowLeft, Fire, Camera, PencilSimple, CheckCircle, Plus, X, CaretRight, Heartbeat, Envelope, Jar, ListChecks, HandsPraying, Scales, MaskHappy, HandPointing, ChartBar, ChatTeardrop, FlowerLotus, Sparkle, HouseSimple, Gear, SignOut, CalendarBlank, MapPin, Clock, Star, Shuffle, ArrowRight } from "@phosphor-icons/react";
+import { Heart, GameController, Leaf, UserCircle, Bell, ArrowLeft, Fire, Camera, PencilSimple, CheckCircle, Plus, X, CaretRight, Heartbeat, Envelope, Jar, ListChecks, HandsPraying, Scales, MaskHappy, HandPointing, ChartBar, ChatTeardrop, FlowerLotus, Sparkle, HouseSimple, Gear, SignOut, CalendarBlank, MapPin, Clock, Star, CalendarHeart, Shuffle, ArrowRight } from "@phosphor-icons/react";
 
 // ── FIREBASE ───────────────────────────────────────────────────────────────
 const firebaseConfig = {
@@ -81,8 +81,8 @@ async function createRoom(uid, userData) {
     users:{ A:{...userData,uid}, B:null },
     coupleName:"", anniversary:"", howWeMet:{A:"",B:""}, couplePhoto:"", distance:"",
     nextMeeting:null, notes:[], bucket:[], memories:[], notifications:[],
-    streak:{count:1,lastDate:todayStr()}, lastHeartbeat:null,
-  });
+streak:{count:1,lastDate:todayStr()}, lastHeartbeat:null,
+datePlans:[], watchHistory:[], outfitCards:[],  });
   await updateDoc(doc(db,"users",uid), { roomId:code, userKey:"A", onboardingDone:true });
   return code;
 }
@@ -1143,15 +1143,909 @@ function ProfileTab({me,partner,myUser,partnerUser,uid,userKey,roomId,roomData,u
     </div>
   );
 }
+const DATE_VIBES = [
+  {key:"romantic",label:"Romantic",emoji:"🌹"},
+  {key:"cozy",label:"Cozy",emoji:"☕"},
+  {key:"foodie",label:"Foodie",emoji:"🍽️"},
+  {key:"adventurous",label:"Adventurous",emoji:"🗺️"},
+  {key:"cultural",label:"Cultural",emoji:"🎭"},
+  {key:"silly",label:"Silly",emoji:"🎉"},
+  {key:"luxe",label:"Luxe",emoji:"✨"},
+  {key:"budget",label:"Budget",emoji:"💚"},
+];
 
+const DATE_OCCASIONS = [
+  {key:"datenight",label:"Date Night"},
+  {key:"videocall",label:"Video Call"},
+  {key:"goingout",label:"Going Out"},
+  {key:"casual",label:"Casual Day"},
+  {key:"special",label:"Special Occasion"},
+];
+
+const OUTFIT_VIBES = [
+  {key:"elegant",label:"Elegant"},
+  {key:"casual",label:"Casual"},
+  {key:"bold",label:"Bold"},
+  {key:"soft",label:"Soft"},
+  {key:"streetwear",label:"Streetwear"},
+  {key:"vintage",label:"Vintage"},
+];
+
+const WATCH_MOODS = [
+  {key:"romantic",label:"Romantic"},
+  {key:"thriller",label:"Thriller"},
+  {key:"comedy",label:"Comedy"},
+  {key:"documentary",label:"Documentary"},
+  {key:"comfort",label:"Comfort rewatch"},
+  {key:"surprise",label:"Surprise me"},
+];
+
+const PLATFORMS = [
+  {key:"netflix",label:"Netflix",url:"https://netflix.com"},
+  {key:"prime",label:"Prime Video",url:"https://primevideo.com"},
+  {key:"youtube",label:"YouTube",url:"https://youtube.com"},
+  {key:"disney",label:"Disney+",url:"https://disneyplus.com"},
+  {key:"hotstar",label:"Hotstar",url:"https://hotstar.com"},
+  {key:"appletv",label:"Apple TV+",url:"https://tv.apple.com"},
+];
+
+// ── DATE PLANNER SCREEN ────────────────────────────────────────────
+function DatePlannerScreen({me,partner,userKey,roomData,update,addN,back}){
+  const pk=userKey==="A"?"B":"A";
+  const [step,setStep]=useState("format"); // format|vibe|city|generating|result|history
+  const [format,setFormat]=useState(""); // inperson|virtual
+  const [vibe,setVibe]=useState("");
+  const [city,setCity]=useState(roomData?.distance?.split("↔")?.[0]?.trim()||"");
+  const [plan,setPlan]=useState(null);
+  const [loading,setLoading]=useState(false);
+  const [savedPlans,setSavedPlans]=useState(roomData?.datePlans||[]);
+  const [scheduledDate,setScheduledDate]=useState("");
+  const [saving,setSaving]=useState(false);
+
+  useEffect(()=>{setSavedPlans(roomData?.datePlans||[]);},[roomData?.datePlans]);
+
+  const generate=async()=>{
+    setStep("generating"); setLoading(true);
+    try{
+      const system=`You are a romantic date planner for couples. Generate creative, specific, and thoughtful date plans. For in-person dates, suggest real types of venues with specific neighbourhood areas and timing. For virtual dates, create a structured evening with specific activities. Always format your response as valid JSON only with no markdown backticks.`;
+
+      const pastPlans=savedPlans.slice(0,5).map(p=>p.title).join(", ");
+      const avoidStr=pastPlans?`Avoid repeating these past date ideas: ${pastPlans}.`:"";
+
+      const prompt=format==="inperson"
+        ?`Create a ${vibe} in-person date plan for a couple in ${city||"their city"}. ${avoidStr}
+Return ONLY this JSON structure:
+{
+  "title": "short romantic title",
+  "format": "inperson",
+  "vibe": "${vibe}",
+  "city": "${city}",
+  "description": "one warm sentence about this date",
+  "stops": [
+    {
+      "time": "7:00 PM",
+      "place": "specific place name or type",
+      "area": "neighbourhood or area of city",
+      "description": "one line about this stop",
+      "mapsQuery": "search term for google maps"
+    }
+  ],
+  "tips": "one practical tip for this date"
+}`
+        :`Create a ${vibe} virtual date plan for a long-distance couple. ${avoidStr}
+Return ONLY this JSON structure:
+{
+  "title": "short romantic title",
+  "format": "virtual",
+  "vibe": "${vibe}",
+  "description": "one warm sentence about this date",
+  "stops": [
+    {
+      "time": "8:00 PM",
+      "activity": "specific activity name",
+      "platform": "tool or platform to use",
+      "description": "one line about this activity",
+      "link": "https://relevant-platform-url.com"
+    }
+  ],
+  "tips": "one practical tip for this virtual date"
+}`;
+
+      const raw=await callClaude(system,prompt);
+      const m=raw.match(/\{[\s\S]*\}/);
+      const parsed=JSON.parse(m?m[0]:raw);
+      setPlan(parsed);
+      setStep("result");
+    }catch(e){
+      console.error(e);
+      setStep("vibe");
+    }
+    setLoading(false);
+  };
+
+  const savePlan=async()=>{
+    if(!plan) return;
+    setSaving(true);
+    const newPlan={
+      id:Date.now()+Math.random(),
+      ...plan,
+      savedBy:userKey,
+      savedAt:Date.now(),
+      scheduledDate:scheduledDate||null,
+      done:false,
+      doneNote:"",
+      donePhoto:"",
+    };
+    const updated=[newPlan,...(roomData?.datePlans||[])];
+    await update({datePlans:updated});
+    await addN("date",`${me?.name} planned a date: ${plan.title}`);
+    setSavedPlans(updated);
+    setPlan(null);
+    setStep("history");
+    setSaving(false);
+  };
+
+  const markDone=async(planId,note)=>{
+    const updated=(roomData?.datePlans||[]).map(p=>p.id===planId?{...p,done:true,doneNote:note,doneAt:Date.now()}:p);
+    await update({datePlans:updated});
+    // Also add to memory jar
+    const donePlan=(roomData?.datePlans||[]).find(p=>p.id===planId);
+    if(donePlan){
+      const memory={id:Date.now()+Math.random(),userKey,name:me?.name,text:`We went on our ${donePlan.vibe} date — ${donePlan.title} 🌹`,image:"",date:new Date().toLocaleDateString("en",{month:"short",day:"numeric"})};
+      await update({memories:[memory,...(roomData?.memories||[])]});
+    }
+  };
+
+  const gradDate="linear-gradient(180deg,#FFE0C0 0%,#FFF5EE 50%,#FFF6F3 100%)";
+  const gradCard="linear-gradient(135deg,#FF8C42,#E85D26)";
+  const gradCardSoft="linear-gradient(135deg,rgba(255,140,66,0.10),rgba(232,93,38,0.06))";
+  const accentColor="#E85D26";
+  const accentSoft="rgba(232,93,38,0.08)";
+  const accentBd="rgba(232,93,38,0.20)";
+
+  return (
+    <div style={{minHeight:"100vh",background:gradDate,paddingBottom:100}}>
+      <div style={{position:"relative",overflow:"hidden"}}>
+        <GradOrb size={300} top={-60} color1="rgba(255,140,66,0.22)" color2="rgba(255,200,140,0.08)"/>
+
+        {/* HEADER */}
+        <div style={{padding:"22px 18px 0",position:"relative",zIndex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:28}}>
+            <BackBtn onClick={back}/>
+            <div style={{flex:1}}>
+              <h2 style={{fontFamily:PF,fontSize:22,fontWeight:400,fontStyle:"italic",color:C.text}}>Date Planner</h2>
+              <div style={{fontSize:12,color:C.muted,fontFamily:LT}}>Plan something beautiful together</div>
+            </div>
+            <button onClick={()=>setStep(step==="history"?"format":"history")} style={{background:step==="history"?"rgba(232,93,38,0.10)":"rgba(255,255,255,0.85)",border:`1px solid ${accentBd}`,borderRadius:14,padding:"8px 14px",cursor:"pointer",fontFamily:LT,fontSize:12,fontWeight:700,color:accentColor,backdropFilter:"blur(8px)"}}>
+              {step==="history"?"+ New plan":"History"}
+            </button>
+          </div>
+        </div>
+
+        <div style={{padding:"0 18px",position:"relative",zIndex:1}}>
+
+          {/* STEP — FORMAT */}
+          {step==="format"&&(
+            <div className="fade-rise">
+              <div style={{textAlign:"center",marginBottom:28}}>
+                <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:72,height:72,borderRadius:"50%",background:gradCard,boxShadow:SHADOWS.xl,marginBottom:16}} className="hb-float">
+                  <CalendarHeart size={36} color="#fff" weight="fill"/>
+                </div>
+                <h3 style={{fontFamily:PF,fontSize:26,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:8}}>What kind of date?</h3>
+                <p style={{fontSize:14,color:C.muted,fontFamily:LT}}>In person or virtual — we'll plan it perfectly.</p>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}>
+                {[
+                  {key:"inperson",icon:"📍",title:"In Person",desc:"A real date — restaurants, parks, adventures"},
+                  {key:"virtual",icon:"💻",title:"Virtual",desc:"A digital date night across the distance"},
+                ].map(f=>(
+                  <button key={f.key} onClick={()=>{setFormat(f.key);setStep("vibe");}} className="card-hover" style={{background:"rgba(255,255,255,0.95)",border:`2px solid ${accentBd}`,borderRadius:22,padding:"24px 16px",cursor:"pointer",fontFamily:LT,textAlign:"center",boxShadow:SHADOWS.md,transition:"all 0.25s"}}>
+                    <div style={{fontSize:36,marginBottom:12}}>{f.icon}</div>
+                    <div style={{fontSize:16,fontWeight:700,color:C.text,fontFamily:PF,fontStyle:"italic",marginBottom:6}}>{f.title}</div>
+                    <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>{f.desc}</div>
+                  </button>
+                ))}
+              </div>
+              {/* History preview */}
+              {savedPlans.length>0&&(
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>Recent plans</div>
+                  {savedPlans.slice(0,2).map(p=>(
+                    <div key={p.id} style={{background:"rgba(255,255,255,0.85)",borderRadius:16,padding:"14px 16px",marginBottom:10,boxShadow:SHADOWS.sm,border:`1px solid ${accentBd}`,display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{fontSize:20}}>{p.format==="inperson"?"📍":"💻"}</div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:14,fontWeight:700,color:C.text,fontFamily:LT}}>{p.title}</div>
+                        <div style={{fontSize:11,color:C.muted,fontFamily:LT,marginTop:2}}>{p.vibe} · {p.done?"Done ✓":"Upcoming"}</div>
+                      </div>
+                    </div>
+                  ))}
+                  <button onClick={()=>setStep("history")} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:accentColor,fontFamily:LT,fontWeight:700,display:"block",width:"100%",textAlign:"center",padding:"8px 0"}}>See all plans →</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STEP — VIBE */}
+          {step==="vibe"&&(
+            <div className="fade-rise">
+              <div style={{marginBottom:24}}>
+                <h3 style={{fontFamily:PF,fontSize:24,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:8}}>What's the vibe?</h3>
+                <p style={{fontSize:14,color:C.muted,fontFamily:LT}}>Pick one — Claude will shape the whole plan around it.</p>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:24}}>
+                {DATE_VIBES.map(v=>(
+                  <button key={v.key} onClick={()=>setVibe(v.key)} className="card-hover" style={{background:vibe===v.key?`rgba(232,93,38,0.10)`:"rgba(255,255,255,0.90)",border:`2px solid ${vibe===v.key?accentColor:accentBd}`,borderRadius:18,padding:"16px 14px",cursor:"pointer",fontFamily:LT,textAlign:"center",boxShadow:vibe===v.key?SHADOWS.md:SHADOWS.sm,transition:"all 0.2s"}}>
+                    <div style={{fontSize:24,marginBottom:6}}>{v.emoji}</div>
+                    <div style={{fontSize:13,fontWeight:700,color:vibe===v.key?accentColor:C.text}}>{v.label}</div>
+                  </button>
+                ))}
+              </div>
+              {format==="inperson"&&(
+                <div style={{marginBottom:20}}>
+                  <Field label="Which city?" placeholder="e.g. Bangalore, London, New York..." value={city} onChange={e=>setCity(e.target.value)}/>
+                </div>
+              )}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <Btn variant="ghost" onClick={()=>setStep("format")}>← Back</Btn>
+                <Btn disabled={!vibe||(format==="inperson"&&!city.trim())} onClick={generate} style={{background:gradCard,border:"none",color:"#fff",boxShadow:SHADOWS.lg}}>Plan this date →</Btn>
+              </div>
+            </div>
+          )}
+
+          {/* STEP — GENERATING */}
+          {step==="generating"&&(
+            <div className="fade-rise" style={{textAlign:"center",padding:"48px 0"}}>
+              <div style={{position:"relative",display:"inline-block",marginBottom:28}}>
+                <div style={{position:"absolute",inset:-20,borderRadius:"50%",border:`2px solid rgba(232,93,38,0.25)`,animation:"hbRing1 2.5s ease-out infinite"}}/>
+                <div style={{width:90,height:90,borderRadius:"50%",background:gradCard,display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.xl}}>
+                  <CalendarHeart size={44} color="#fff" weight="fill" className="hb-spin"/>
+                </div>
+              </div>
+              <h3 style={{fontFamily:PF,fontSize:24,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:10}}>Planning your date...</h3>
+              <p style={{fontSize:14,color:C.muted,fontFamily:LT,lineHeight:1.7}}>Finding the perfect places<br/>and crafting your evening.</p>
+            </div>
+          )}
+
+          {/* STEP — RESULT */}
+          {step==="result"&&plan&&(
+            <div className="fade-rise">
+              {/* Plan header card */}
+              <div style={{background:gradCard,borderRadius:24,padding:"24px 22px",marginBottom:20,boxShadow:SHADOWS.xl,position:"relative",overflow:"hidden"}}>
+                <div style={{position:"absolute",top:-20,right:-20,width:100,height:100,borderRadius:"50%",background:"rgba(255,255,255,0.08)"}}/>
+                <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.7)",textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8,fontFamily:LT,display:"flex",alignItems:"center",gap:6}}>
+                  <CalendarHeart size={12} color="rgba(255,255,255,0.7)" weight="fill"/>
+                  {plan.vibe} · {plan.format==="inperson"?plan.city:"Virtual date"}
+                </div>
+                <h3 style={{fontFamily:PF,fontSize:24,fontStyle:"italic",fontWeight:400,color:"#fff",marginBottom:10,lineHeight:1.3}}>{plan.title}</h3>
+                <p style={{fontSize:14,color:"rgba(255,255,255,0.8)",fontFamily:LT,lineHeight:1.6}}>{plan.description}</p>
+              </div>
+
+              {/* Stops */}
+              <div style={{marginBottom:20}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>Your evening</div>
+                {plan.stops?.map((stop,i)=>(
+                  <div key={i} style={{display:"flex",gap:14,marginBottom:14}}>
+                    {/* Timeline dot */}
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0}}>
+                      <div style={{width:36,height:36,borderRadius:"50%",background:gradCard,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.sm,fontSize:12,fontWeight:700,color:"#fff",fontFamily:LT}}>{i+1}</div>
+                      {i<plan.stops.length-1&&<div style={{width:2,flex:1,background:"rgba(232,93,38,0.15)",minHeight:20,marginTop:4}}/>}
+                    </div>
+                    {/* Stop card */}
+                    <div style={{flex:1,background:"rgba(255,255,255,0.95)",borderRadius:18,padding:"14px 16px",boxShadow:SHADOWS.sm,border:`1px solid ${accentBd}`,marginBottom:4}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                        <div style={{fontSize:11,fontWeight:700,color:accentColor,fontFamily:LT}}>{stop.time}</div>
+                        {stop.area&&<div style={{fontSize:10,color:C.muted,fontFamily:LT,background:"rgba(232,93,38,0.06)",padding:"2px 8px",borderRadius:8}}>{stop.area}</div>}
+                      </div>
+                      <div style={{fontSize:15,fontWeight:700,color:C.text,fontFamily:LT,marginBottom:4}}>{stop.place||stop.activity}</div>
+                      <div style={{fontSize:12,color:C.muted,fontFamily:LT,lineHeight:1.5,marginBottom:stop.mapsQuery||stop.link?8:0}}>{stop.description}</div>
+                      {stop.mapsQuery&&(
+                        <a href={`https://www.google.com/maps/search/${encodeURIComponent(stop.mapsQuery+(city?` ${city}`:""))}`} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:accentColor,fontFamily:LT,display:"flex",alignItems:"center",gap:4,textDecoration:"none"}}>
+                          <MapPin size={11} color={accentColor} weight="fill"/> Open in Maps →
+                        </a>
+                      )}
+                      {stop.link&&(
+                        <a href={stop.link} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:accentColor,fontFamily:LT,display:"flex",alignItems:"center",gap:4,textDecoration:"none"}}>
+                          <ArrowRight size={11} color={accentColor}/> Open {stop.platform} →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Tips */}
+              {plan.tips&&(
+                <div style={{background:"rgba(232,93,38,0.06)",border:`1px solid ${accentBd}`,borderRadius:16,padding:"14px 16px",marginBottom:20}}>
+                  <div style={{fontSize:11,fontWeight:700,color:accentColor,marginBottom:6,fontFamily:LT,textTransform:"uppercase",letterSpacing:"0.06em"}}>Tip</div>
+                  <div style={{fontSize:13,color:C.text,fontFamily:LT,lineHeight:1.6}}>{plan.tips}</div>
+                </div>
+              )}
+
+              {/* Schedule date */}
+              <Field label="When is this date? (optional)" type="date" value={scheduledDate} onChange={e=>setScheduledDate(e.target.value)}/>
+
+              {/* Actions */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                <Btn variant="ghost" onClick={()=>setStep("vibe")}>Try again →</Btn>
+                <Btn onClick={savePlan} disabled={saving} style={{background:gradCard,border:"none",color:"#fff",boxShadow:SHADOWS.lg}}>
+                  {saving?"Saving...":"Save this plan"}
+                </Btn>
+              </div>
+            </div>
+          )}
+
+          {/* STEP — HISTORY */}
+          {step==="history"&&(
+            <div className="fade-rise">
+              <div style={{marginBottom:20}}>
+                <h3 style={{fontFamily:PF,fontSize:24,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:6}}>Your date history</h3>
+                <p style={{fontSize:13,color:C.muted,fontFamily:LT}}>{savedPlans.length} plans saved together</p>
+              </div>
+              {savedPlans.length===0?(
+                <div style={{textAlign:"center",padding:"44px 0"}}>
+                  <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:72,height:72,borderRadius:"50%",background:gradCard,boxShadow:SHADOWS.lg,marginBottom:16}} className="hb-float"><CalendarHeart size={32} color="#fff" weight="fill"/></div>
+                  <div style={{color:C.muted,fontSize:15,fontFamily:LT}}>No plans yet — create your first date.</div>
+                </div>
+              ):(
+                <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                  {savedPlans.map((p,i)=>(
+                    <HistoryCard key={p.id} plan={p} accentColor={accentColor} accentBd={accentBd} gradCard={gradCard} onMarkDone={markDone} me={me}/>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── HISTORY CARD ───────────────────────────────────────────────────
+function HistoryCard({plan,accentColor,accentBd,gradCard,onMarkDone,me}){
+  const [expanded,setExpanded]=useState(false);
+  const [note,setNote]=useState("");
+  const [marking,setMarking]=useState(false);
+
+  const handleDone=async()=>{
+    setMarking(true);
+    await onMarkDone(plan.id,note);
+    setMarking(false);
+    setExpanded(false);
+  };
+
+  return (
+    <div style={{background:"rgba(255,255,255,0.95)",borderRadius:20,overflow:"hidden",boxShadow:SHADOWS.md,border:`1px solid ${plan.done?"rgba(107,143,113,0.20)":accentBd}`}}>
+      <div style={{padding:"16px 18px"}}>
+        <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+          <div style={{width:44,height:44,borderRadius:14,background:plan.done?"linear-gradient(135deg,#90C498,#6B8F71)":gradCard,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:SHADOWS.sm}}>
+            {plan.done?<CheckCircle size={22} color="#fff" weight="fill"/>:<CalendarHeart size={22} color="#fff" weight="fill"/>}
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:15,fontWeight:700,color:C.text,fontFamily:LT,marginBottom:3}}>{plan.title}</div>
+            <div style={{fontSize:11,color:C.muted,fontFamily:LT,display:"flex",gap:8,flexWrap:"wrap"}}>
+              <span style={{background:plan.done?"rgba(107,143,113,0.10)":"rgba(232,93,38,0.08)",padding:"2px 8px",borderRadius:8,color:plan.done?C.sage:accentColor,fontWeight:700}}>{plan.done?"Done ✓":"Upcoming"}</span>
+              <span>{plan.format==="inperson"?`📍 ${plan.city}`:"💻 Virtual"}</span>
+              <span>{plan.vibe}</span>
+              {plan.scheduledDate&&<span>📅 {new Date(plan.scheduledDate).toLocaleDateString("en",{month:"short",day:"numeric"})}</span>}
+            </div>
+          </div>
+          <button onClick={()=>setExpanded(!expanded)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:12,fontFamily:LT,fontWeight:700,flexShrink:0}}>
+            {expanded?"Less":"Details"}
+          </button>
+        </div>
+      </div>
+      {expanded&&(
+        <div style={{borderTop:`1px solid rgba(232,93,38,0.08)`,padding:"14px 18px"}}>
+          <div style={{fontSize:13,color:C.muted,fontFamily:LT,lineHeight:1.6,marginBottom:12}}>{plan.description}</div>
+          {plan.stops?.slice(0,3).map((stop,i)=>(
+            <div key={i} style={{fontSize:12,color:C.text,fontFamily:LT,marginBottom:6,display:"flex",gap:8}}>
+              <span style={{color:accentColor,fontWeight:700,flexShrink:0}}>{stop.time}</span>
+              <span>{stop.place||stop.activity}</span>
+            </div>
+          ))}
+          {!plan.done&&(
+            <div style={{marginTop:14}}>
+              <Field textarea label="How was it? (optional note)" placeholder="A memory from this date..." value={note} onChange={e=>setNote(e.target.value)}/>
+              <Btn onClick={handleDone} disabled={marking} style={{background:C.gradSage,border:"none",color:"#fff"}}>{marking?"Saving...":"Mark as done ✓"}</Btn>
+            </div>
+          )}
+          {plan.done&&plan.doneNote&&(
+            <div style={{background:"rgba(107,143,113,0.08)",borderRadius:12,padding:"10px 14px",marginTop:10}}>
+              <div style={{fontSize:12,color:C.sage,fontFamily:PF,fontStyle:"italic",lineHeight:1.6}}>"{plan.doneNote}"</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── OUTFIT PLANNER SCREEN ──────────────────────────────────────────
+function OutfitPlannerScreen({me,partner,userKey,roomData,update,addN,back}){
+  const pk=userKey==="A"?"B":"A";
+  const [mode,setMode]=useState(""); // forme|forpartner|react
+  const [occasion,setOccasion]=useState("");
+  const [vibe,setVibe]=useState("");
+  const [note,setNote]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [result,setResult]=useState(null);
+  const [partnerNote,setPartnerNote]=useState("");
+
+  const outfitCards=roomData?.outfitCards||[];
+  const pendingForMe=outfitCards.filter(c=>c.for===userKey&&!c.seen);
+  const myCards=outfitCards.filter(c=>c.by===userKey);
+
+  const generate=async()=>{
+    setLoading(true);
+    try{
+      const target=mode==="forme"?me?.name:partner?.name;
+      const system="You are a thoughtful personal stylist. Generate specific, wearable outfit suggestions with colour palettes, key pieces, and styling notes. Be warm and personal. Return only JSON.";
+      const prompt=`Generate a ${vibe} outfit suggestion for ${target} for a ${occasion} occasion.${note?` Special note: ${note}`:""}
+Return ONLY this JSON:
+{
+  "title": "outfit name",
+  "keyPieces": ["piece 1", "piece 2", "piece 3"],
+  "colours": ["colour 1", "colour 2"],
+  "styling": "2-3 sentences of styling advice",
+  "avoid": "one thing to avoid",
+  "mood": "one word mood of this outfit"
+}`;
+      const raw=await callClaude(system,prompt);
+      const m=raw.match(/\{[\s\S]*\}/);
+      setResult(JSON.parse(m?m[0]:raw));
+    }catch(e){console.error(e);}
+    setLoading(false);
+  };
+
+  const sendToPartner=async()=>{
+    if(!result) return;
+    const card={id:Date.now()+Math.random(),by:userKey,for:pk,occasion,vibe,result,note,seen:false,revisions:[],ts:Date.now()};
+    await update({outfitCards:[card,...outfitCards]});
+    await addN("outfit",`${me?.name} has an outfit idea for you ✨`);
+    setResult(null); setMode(""); setOccasion(""); setVibe(""); setNote("");
+  };
+
+  const requestChange=async(cardId,changeNote)=>{
+    setLoading(true);
+    try{
+      const card=outfitCards.find(c=>c.id===cardId);
+      const system="You are a personal stylist. Revise an outfit suggestion based on feedback. Return only JSON.";
+      const prompt=`Original outfit: ${JSON.stringify(card.result)}. Requested change: "${changeNote}". Generate a revised outfit keeping the original spirit but incorporating the change.
+Return ONLY this JSON:
+{
+  "title": "revised outfit name",
+  "keyPieces": ["piece 1", "piece 2", "piece 3"],
+  "colours": ["colour 1", "colour 2"],
+  "styling": "2-3 sentences of styling advice",
+  "avoid": "one thing to avoid",
+  "mood": "one word mood"
+}`;
+      const raw=await callClaude(system,prompt);
+      const m=raw.match(/\{[\s\S]*\}/);
+      const revised=JSON.parse(m?m[0]:raw);
+      const updated=outfitCards.map(c=>c.id===cardId?{...c,result:revised,revisions:[...c.revisions,{note:changeNote,ts:Date.now()}],seen:true}:c);
+      await update({outfitCards:updated});
+    }catch(e){console.error(e);}
+    setLoading(false);
+  };
+
+  const gradOutfit="linear-gradient(135deg,#C084FC,#8B6BAD)";
+  const outfitColor=C.purple;
+  const outfitBd=C.purpleBd;
+
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#EAD6FF 0%,#F8F0FF 50%,#FFF6F3 100%)",paddingBottom:100}}>
+      <div style={{position:"relative",overflow:"hidden"}}>
+        <GradOrb size={280} top={-50} color1="rgba(139,107,173,0.25)" color2="rgba(180,150,220,0.08)"/>
+        <div style={{padding:"22px 18px 0",position:"relative",zIndex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:28}}>
+            <BackBtn onClick={back}/>
+            <div style={{flex:1}}>
+              <h2 style={{fontFamily:PF,fontSize:22,fontWeight:400,fontStyle:"italic",color:C.text}}>Outfit Planner</h2>
+              <div style={{fontSize:12,color:C.muted,fontFamily:LT}}>Dress for each other</div>
+            </div>
+            {pendingForMe.length>0&&<div style={{background:gradOutfit,borderRadius:20,padding:"5px 12px",display:"flex",alignItems:"center",gap:4,boxShadow:SHADOWS.sm}}><Sparkle size={12} color="#fff" weight="fill"/><span style={{fontSize:11,fontWeight:700,color:"#fff",fontFamily:LT}}>{pendingForMe.length} for you</span></div>}
+          </div>
+
+          {!mode&&(
+            <div className="fade-rise">
+              {pendingForMe.length>0&&(
+                <div style={{marginBottom:24}}>
+                  <div style={{fontSize:11,fontWeight:700,color:outfitColor,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>From {partner?.name} ✨</div>
+                  {pendingForMe.map(card=>(
+                    <OutfitCard key={card.id} card={card} me={me} partner={partner} userKey={userKey} outfitColor={outfitColor} outfitBd={outfitBd} gradOutfit={gradOutfit} onRequestChange={requestChange} loading={loading}/>
+                  ))}
+                </div>
+              )}
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                {[
+                  {key:"forme",icon:"✨",title:"Get outfit ideas",desc:"AI suggests an outfit for you"},
+                  {key:"forpartner",icon:"💌",title:`Suggest for ${partner?.name}`,desc:"Send your partner an outfit idea"},
+                ].map(m=>(
+                  <button key={m.key} onClick={()=>setMode(m.key)} className="card-hover" style={{background:"rgba(255,255,255,0.95)",border:`1.5px solid ${outfitBd}`,borderRadius:20,padding:"20px 18px",cursor:"pointer",fontFamily:LT,textAlign:"left",boxShadow:SHADOWS.md,display:"flex",alignItems:"center",gap:16}}>
+                    <div style={{width:50,height:50,borderRadius:16,background:gradOutfit,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:22,boxShadow:SHADOWS.sm}}>{m.icon}</div>
+                    <div><div style={{fontSize:15,fontWeight:700,color:C.text,marginBottom:4}}>{m.title}</div><div style={{fontSize:12,color:C.muted}}>{m.desc}</div></div>
+                    <CaretRight size={18} color={C.muted} style={{marginLeft:"auto",flexShrink:0}}/>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {mode&&!result&&!loading&&(
+            <div className="fade-rise">
+              <h3 style={{fontFamily:PF,fontSize:22,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:20}}>{mode==="forme"?"What are you dressing for?":`What should ${partner?.name} wear?`}</h3>
+              <div style={{marginBottom:18}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10,fontFamily:LT}}>Occasion</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                  {DATE_OCCASIONS.map(o=><button key={o.key} onClick={()=>setOccasion(o.key)} style={{padding:"8px 16px",borderRadius:20,border:`1.5px solid ${occasion===o.key?outfitColor:outfitBd}`,background:occasion===o.key?C.purpleSoft:"rgba(255,255,255,0.8)",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:600,color:occasion===o.key?outfitColor:C.muted,transition:"all 0.18s"}}>{o.label}</button>)}
+                </div>
+              </div>
+              <div style={{marginBottom:18}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10,fontFamily:LT}}>Vibe</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                  {OUTFIT_VIBES.map(v=><button key={v.key} onClick={()=>setVibe(v.key)} style={{padding:"8px 16px",borderRadius:20,border:`1.5px solid ${vibe===v.key?outfitColor:outfitBd}`,background:vibe===v.key?C.purpleSoft:"rgba(255,255,255,0.8)",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:600,color:vibe===v.key?outfitColor:C.muted,transition:"all 0.18s"}}>{v.label}</button>)}
+                </div>
+              </div>
+              {mode==="forpartner"&&<Field label="A note (optional)" placeholder={`e.g. I want to see you in something soft and warm...`} value={note} onChange={e=>setNote(e.target.value)}/>}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <Btn variant="ghost" onClick={()=>{setMode("");setOccasion("");setVibe("");}}>← Back</Btn>
+                <Btn disabled={!occasion||!vibe} onClick={generate} style={{background:gradOutfit,border:"none",color:"#fff"}}>Generate →</Btn>
+              </div>
+            </div>
+          )}
+
+          {loading&&<Spinner text="Styling your look..."/>}
+
+          {result&&!loading&&(
+            <div className="fade-rise">
+              <div style={{background:gradOutfit,borderRadius:24,padding:"24px 22px",marginBottom:20,boxShadow:SHADOWS.xl}}>
+                <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.7)",textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8,fontFamily:LT}}>{vibe} · {occasion}</div>
+                <h3 style={{fontFamily:PF,fontSize:22,fontStyle:"italic",fontWeight:400,color:"#fff",marginBottom:6}}>{result.title}</h3>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.7)",fontFamily:LT}}>Mood: {result.mood}</div>
+              </div>
+              <Card elevated style={{marginBottom:14}}>
+                <div style={{fontSize:11,fontWeight:700,color:outfitColor,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10,fontFamily:LT}}>Key pieces</div>
+                {result.keyPieces?.map((p,i)=><div key={i} style={{fontSize:14,color:C.text,fontFamily:LT,marginBottom:6,display:"flex",gap:8}}><span style={{color:outfitColor}}>✦</span>{p}</div>)}
+              </Card>
+              <Card elevated style={{marginBottom:14}}>
+                <div style={{fontSize:11,fontWeight:700,color:outfitColor,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10,fontFamily:LT}}>Colour palette</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{result.colours?.map((col,i)=><span key={i} style={{background:C.purpleSoft,color:outfitColor,padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:700,fontFamily:LT,border:`1px solid ${outfitBd}`}}>{col}</span>)}</div>
+              </Card>
+              <Card elevated style={{marginBottom:14}}>
+                <div style={{fontSize:11,fontWeight:700,color:outfitColor,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8,fontFamily:LT}}>Styling notes</div>
+                <div style={{fontSize:14,color:C.text,fontFamily:LT,lineHeight:1.65}}>{result.styling}</div>
+                {result.avoid&&<div style={{fontSize:12,color:C.muted,fontFamily:LT,marginTop:10,fontStyle:"italic"}}>Avoid: {result.avoid}</div>}
+              </Card>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <Btn variant="ghost" onClick={()=>setResult(null)}>Try again →</Btn>
+                {mode==="forpartner"?<Btn onClick={sendToPartner} style={{background:gradOutfit,border:"none",color:"#fff"}}>Send to {partner?.name} →</Btn>:<Btn variant="ghost" onClick={()=>{setResult(null);setMode("");}}>Done</Btn>}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── OUTFIT CARD ────────────────────────────────────────────────────
+function OutfitCard({card,me,partner,userKey,outfitColor,outfitBd,gradOutfit,onRequestChange,loading}){
+  const [expanded,setExpanded]=useState(true);
+  const [changeNote,setChangeNote]=useState("");
+  const [requesting,setRequesting]=useState(false);
+
+  const handleChange=async()=>{
+    if(!changeNote.trim()) return;
+    setRequesting(true);
+    await onRequestChange(card.id,changeNote);
+    setChangeNote("");
+    setRequesting(false);
+  };
+
+  return (
+    <div style={{background:"rgba(255,255,255,0.95)",borderRadius:20,overflow:"hidden",boxShadow:SHADOWS.md,border:`1px solid ${outfitBd}`,marginBottom:12}}>
+      <div style={{background:gradOutfit,padding:"14px 18px"}}>
+        <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",fontFamily:LT,marginBottom:4}}>{card.vibe} · {card.occasion}</div>
+        <div style={{fontSize:16,fontWeight:700,color:"#fff",fontFamily:PF,fontStyle:"italic"}}>{card.result.title}</div>
+      </div>
+      <div style={{padding:"14px 18px"}}>
+        {card.result.keyPieces?.map((p,i)=><div key={i} style={{fontSize:13,color:C.text,fontFamily:LT,marginBottom:5,display:"flex",gap:8}}><span style={{color:outfitColor}}>✦</span>{p}</div>)}
+        <div style={{fontSize:13,color:C.muted,fontFamily:LT,lineHeight:1.6,marginTop:10}}>{card.result.styling}</div>
+        {card.note&&<div style={{fontSize:12,color:outfitColor,fontFamily:PF,fontStyle:"italic",marginTop:10}}>"{card.note}"</div>}
+        {card.revisions?.length>0&&<div style={{fontSize:11,color:C.muted,fontFamily:LT,marginTop:8}}>Revised {card.revisions.length} time{card.revisions.length>1?"s":""}</div>}
+        <div style={{marginTop:14}}>
+          <Field placeholder="Request a change... e.g. try a warmer colour" value={changeNote} onChange={e=>setChangeNote(e.target.value)}/>
+          <Btn disabled={!changeNote.trim()||requesting||loading} onClick={handleChange} style={{background:gradOutfit,border:"none",color:"#fff",fontSize:13}}>{requesting?"Revising...":"Request this change →"}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── WATCH PARTY SCREEN ─────────────────────────────────────────────
+function WatchPartyScreen({me,partner,userKey,roomData,update,addN,back}){
+  const pk=userKey==="A"?"B":"A";
+  const [step,setStep]=useState("mood"); // mood|suggestions|platform|countdown|done
+  const [mood,setMood]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [suggestions,setSuggestions]=useState(null);
+  const [picked,setPicked]=useState(null);
+  const [partnerPicked,setPartnerPicked]=useState(null);
+  const [platform,setPlatform]=useState("");
+  const [countdown,setCountdown]=useState(null);
+  const [reaction,setReaction]=useState("");
+  const watchKey=`watch_${new Date().toISOString().split("T")[0].replace(/-/g,"")}`;
+  const watchData=roomData?.[watchKey];
+
+  useEffect(()=>{
+    if(watchData?.suggestions) setSuggestions(watchData.suggestions);
+    if(watchData?.[`pick_${pk}`]) setPartnerPicked(watchData[`pick_${pk}`]);
+    if(watchData?.countdown) setCountdown(watchData.countdown);
+    if(watchData?.step) setStep(watchData.step);
+  },[watchData]);
+
+  const getSuggestions=async()=>{
+    setLoading(true);
+    try{
+      const history=(roomData?.watchHistory||[]).slice(0,5).map(w=>w.title).join(", ");
+      const system="You are a film curator for couples. Suggest films based on mood. Return only JSON.";
+      const prompt=`Suggest 3 ${mood} films or shows for a couple to watch together.${history?` They've already watched: ${history}. Don't repeat these.`:""}
+Return ONLY this JSON:
+{
+  "suggestions": [
+    {"title": "Film Title", "year": 2020, "genre": "genre", "pitch": "one romantic sentence about why to watch this together", "runtime": "2h 10m"},
+    {"title": "Film Title 2", "year": 2019, "genre": "genre", "pitch": "pitch", "runtime": "1h 45m"},
+    {"title": "Film Title 3", "year": 2021, "genre": "genre", "pitch": "pitch", "runtime": "2h"}
+  ]
+}`;
+      const raw=await callClaude(system,prompt);
+      const m=raw.match(/\{[\s\S]*\}/);
+      const parsed=JSON.parse(m?m[0]:raw);
+      await update({[`${watchKey}.suggestions`]:parsed.suggestions,[`${watchKey}.mood`]:mood,[`${watchKey}.step`]:"suggestions"});
+      setSuggestions(parsed.suggestions);
+      setStep("suggestions");
+    }catch(e){console.error(e);}
+    setLoading(false);
+  };
+
+  const pickFilm=async(film)=>{
+    setPicked(film);
+    await update({[`${watchKey}.pick_${userKey}`]:film});
+    await addN("watch",`${me?.name} picked ${film.title}`);
+    // Check if partner also picked
+    if(watchData?.[`pick_${pk}`]){
+      const theirPick=watchData[`pick_${pk}`];
+      if(theirPick.title===film.title){
+        await update({[`${watchKey}.confirmed`]:film,[`${watchKey}.step`]:"platform"});
+        setStep("platform");
+      }
+    }
+  };
+
+  const startCountdown=async()=>{
+    const ts=Date.now()+10000; // 10 seconds from now
+    await update({[`${watchKey}.countdown`]:ts,[`${watchKey}.step`]:"countdown"});
+    setCountdown(ts);
+    setStep("countdown");
+    await addN("watch",`${me?.name} started the countdown!`);
+  };
+
+  const sendReaction=async(emoji)=>{
+    setReaction(emoji);
+    await update({[`${watchKey}.reaction_${userKey}`]:emoji});
+    // Save to history
+    const confirmed=watchData?.confirmed;
+    if(confirmed){
+      const entry={id:Date.now()+Math.random(),title:confirmed.title,mood,platform,watchedAt:Date.now(),[`reaction_${userKey}`]:emoji};
+      await update({watchHistory:[entry,...(roomData?.watchHistory||[])].slice(0,20)});
+    }
+  };
+
+  const CountdownTimer=()=>{
+    const [remaining,setRemaining]=useState(null);
+    useEffect(()=>{
+      if(!countdown) return;
+      const tick=()=>{ const r=Math.ceil((countdown-Date.now())/1000); setRemaining(r>0?r:0); };
+      tick(); const interval=setInterval(tick,200);
+      return ()=>clearInterval(interval);
+    },[countdown]);
+    return <div style={{fontSize:96,fontWeight:700,color:"#fff",fontFamily:PF,lineHeight:1,textShadow:"0 4px 24px rgba(0,0,0,0.3)"}}>{remaining>0?remaining:"▶"}</div>;
+  };
+
+  const gradWatch="linear-gradient(135deg,#1A0A05,#2A1A08)";
+  const watchColor="#E8A080";
+
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#1A0A05 0%,#2A1A08 40%,#FFF6F3 100%)",paddingBottom:100}}>
+      <div style={{position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-80,left:"50%",transform:"translateX(-50%)",width:400,height:400,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,140,80,0.20) 0%,transparent 70%)",filter:"blur(40px)",pointerEvents:"none"}}/>
+
+        <div style={{padding:"22px 18px 0",position:"relative",zIndex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:28}}>
+            <button onClick={back} style={{background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:14,cursor:"pointer",padding:"9px 11px",lineHeight:1,display:"flex",alignItems:"center"}}><ArrowLeft size={20} color="rgba(255,255,255,0.7)"/></button>
+            <div style={{flex:1}}>
+              <h2 style={{fontFamily:PF,fontSize:22,fontWeight:400,fontStyle:"italic",color:"#FAF0E8"}}>Watch Party</h2>
+              <div style={{fontSize:12,color:"rgba(250,240,232,0.5)",fontFamily:LT}}>Watch something together tonight</div>
+            </div>
+          </div>
+
+          {step==="mood"&&(
+            <div className="fade-rise">
+              <div style={{textAlign:"center",marginBottom:32}}>
+                <div style={{width:80,height:80,borderRadius:"50%",background:"linear-gradient(135deg,#E85D26,#C4522A)",display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:"0 12px 40px rgba(232,93,38,0.4)",marginBottom:16}} className="hb-float">
+                  <Star size={40} color="#FAF0E8" weight="fill"/>
+                </div>
+                <h3 style={{fontFamily:PF,fontSize:26,fontStyle:"italic",fontWeight:400,color:"#FAF0E8",marginBottom:8}}>What's the mood tonight?</h3>
+                <p style={{fontSize:14,color:"rgba(250,240,232,0.55)",fontFamily:LT}}>Pick a vibe — we'll find the perfect film.</p>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:24}}>
+                {WATCH_MOODS.map(m=>(
+                  <button key={m.key} onClick={()=>setMood(m.key)} className="card-hover" style={{background:mood===m.key?"rgba(232,93,38,0.20)":"rgba(255,255,255,0.06)",border:`2px solid ${mood===m.key?"rgba(232,93,38,0.60)":"rgba(255,255,255,0.10)"}`,borderRadius:16,padding:"16px 12px",cursor:"pointer",fontFamily:LT,textAlign:"center",color:mood===m.key?watchColor:"rgba(255,255,255,0.6)",fontWeight:700,fontSize:13,transition:"all 0.2s"}}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              {loading?<Spinner text="Finding films..."/>:<button onClick={getSuggestions} disabled={!mood} className="card-hover" style={{display:"block",width:"100%",borderRadius:18,padding:"15px 24px",fontFamily:LT,fontSize:15,fontWeight:700,background:"linear-gradient(135deg,#E85D26,#C4522A)",color:"#FAF0E8",border:"none",cursor:mood?"pointer":"not-allowed",opacity:mood?1:0.45,boxShadow:"0 8px 24px rgba(232,93,38,0.40)"}}>Find films →</button>}
+            </div>
+          )}
+
+          {step==="suggestions"&&suggestions&&(
+            <div className="fade-rise">
+              <div style={{marginBottom:20}}>
+                <h3 style={{fontFamily:PF,fontSize:22,fontStyle:"italic",fontWeight:400,color:"#FAF0E8",marginBottom:6}}>Pick your film</h3>
+                <p style={{fontSize:13,color:"rgba(250,240,232,0.5)",fontFamily:LT}}>Both of you pick — if you match, it's confirmed.</p>
+              </div>
+              {suggestions.map((film,i)=>(
+                <button key={i} onClick={()=>pickFilm(film)} className="card-hover" style={{display:"block",width:"100%",background:picked?.title===film.title?"rgba(232,93,38,0.20)":partnerPicked?.title===film.title?"rgba(107,143,113,0.15)":"rgba(255,255,255,0.06)",border:`2px solid ${picked?.title===film.title?"rgba(232,93,38,0.60)":partnerPicked?.title===film.title?"rgba(107,143,113,0.40)":"rgba(255,255,255,0.10)"}`,borderRadius:20,padding:"18px 16px",fontFamily:LT,textAlign:"left",marginBottom:12,cursor:"pointer",transition:"all 0.2s"}}>
+                  <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,marginBottom:8}}>
+                    <div style={{fontSize:16,fontWeight:700,color:"#FAF0E8",fontFamily:PF,fontStyle:"italic",flex:1}}>{film.title}</div>
+                    <div style={{fontSize:11,color:"rgba(250,240,232,0.5)",flexShrink:0}}>{film.runtime}</div>
+                  </div>
+                  <div style={{fontSize:11,color:"rgba(250,240,232,0.5)",marginBottom:8,display:"flex",gap:8}}><span>{film.year}</span><span>·</span><span>{film.genre}</span></div>
+                  <div style={{fontSize:13,color:"rgba(250,240,232,0.70)",lineHeight:1.55}}>{film.pitch}</div>
+                  {picked?.title===film.title&&<div style={{fontSize:11,color:watchColor,fontWeight:700,marginTop:8,fontFamily:LT}}>✓ Your pick</div>}
+                  {partnerPicked?.title===film.title&&picked?.title!==film.title&&<div style={{fontSize:11,color:C.sage,fontWeight:700,marginTop:8,fontFamily:LT}}>✓ {partner?.name}'s pick</div>}
+                </button>
+              ))}
+              {picked&&!watchData?.confirmed&&<div style={{textAlign:"center",fontSize:13,color:"rgba(250,240,232,0.5)",fontFamily:LT,marginTop:8}}>Waiting for {partner?.name} to pick...</div>}
+            </div>
+          )}
+
+          {step==="platform"&&(
+            <div className="fade-rise">
+              <div style={{marginBottom:20}}>
+                <h3 style={{fontFamily:PF,fontSize:22,fontStyle:"italic",fontWeight:400,color:"#FAF0E8",marginBottom:6}}>Where are you watching?</h3>
+                <p style={{fontSize:13,color:"rgba(250,240,232,0.5)",fontFamily:LT}}>Pick your platform — we'll send you straight there.</p>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+                {PLATFORMS.map(p=>(
+                  <button key={p.key} onClick={()=>setPlatform(p.key)} className="card-hover" style={{background:platform===p.key?"rgba(232,93,38,0.20)":"rgba(255,255,255,0.06)",border:`2px solid ${platform===p.key?"rgba(232,93,38,0.60)":"rgba(255,255,255,0.10)"}`,borderRadius:16,padding:"14px 12px",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:platform===p.key?watchColor:"rgba(255,255,255,0.6)",transition:"all 0.2s",textAlign:"center"}}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              {platform&&(
+                <a href={PLATFORMS.find(p=>p.key===platform)?.url} target="_blank" rel="noreferrer" style={{display:"block",textAlign:"center",fontSize:13,color:watchColor,fontFamily:LT,fontWeight:700,marginBottom:20,textDecoration:"none"}}>→ Open {PLATFORMS.find(p=>p.key===platform)?.label}</a>
+              )}
+              <button onClick={startCountdown} disabled={!platform} className="card-hover" style={{display:"block",width:"100%",borderRadius:18,padding:"15px 24px",fontFamily:LT,fontSize:15,fontWeight:700,background:"linear-gradient(135deg,#E85D26,#C4522A)",color:"#FAF0E8",border:"none",cursor:platform?"pointer":"not-allowed",opacity:platform?1:0.45,boxShadow:"0 8px 24px rgba(232,93,38,0.40)"}}>Start the countdown →</button>
+            </div>
+          )}
+
+          {step==="countdown"&&(
+            <div className="fade-rise" style={{textAlign:"center",paddingTop:40}}>
+              <p style={{fontSize:14,color:"rgba(250,240,232,0.55)",fontFamily:LT,marginBottom:32}}>Press play when you see ▶</p>
+              <CountdownTimer/>
+              <p style={{fontSize:16,color:"rgba(250,240,232,0.7)",fontFamily:PF,fontStyle:"italic",marginTop:32}}>Enjoy your film together ♥</p>
+              <div style={{display:"flex",justifyContent:"center",gap:16,marginTop:40,flexWrap:"wrap"}}>
+                {["😱","😂","🥹","😍","🤯","😤"].map(emoji=>(
+                  <button key={emoji} onClick={()=>sendReaction(emoji)} style={{fontSize:32,background:reaction===emoji?"rgba(255,255,255,0.20)":"rgba(255,255,255,0.08)",border:`2px solid ${reaction===emoji?"rgba(255,255,255,0.5)":"rgba(255,255,255,0.10)"}`,borderRadius:"50%",width:56,height:56,cursor:"pointer",transition:"all 0.2s",display:"flex",alignItems:"center",justifyContent:"center"}}>{emoji}</button>
+                ))}
+              </div>
+              {roomData?.[`${watchKey}.reaction_${pk}`]&&<div style={{fontSize:13,color:"rgba(250,240,232,0.55)",fontFamily:LT,marginTop:20}}>{partner?.name} reacted {roomData[`${watchKey}.reaction_${pk}`]}</div>}
+              <button onClick={()=>setStep("done")} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"rgba(250,240,232,0.4)",fontFamily:LT,marginTop:32,display:"block",width:"100%"}}>Film's over →</button>
+            </div>
+          )}
+
+          {step==="done"&&(
+            <div className="fade-rise" style={{textAlign:"center",paddingTop:40}}>
+              <div style={{fontSize:64,marginBottom:16}}>🎬</div>
+              <h3 style={{fontFamily:PF,fontSize:26,fontStyle:"italic",fontWeight:400,color:"#FAF0E8",marginBottom:10}}>How was it?</h3>
+              <div style={{display:"flex",justifyContent:"center",gap:16,marginBottom:32,flexWrap:"wrap"}}>
+                {["😱","😂","🥹","😍","🤯","😤"].map(emoji=>(
+                  <button key={emoji} onClick={()=>sendReaction(emoji)} style={{fontSize:32,background:reaction===emoji?"rgba(255,255,255,0.20)":"rgba(255,255,255,0.08)",border:`2px solid ${reaction===emoji?"rgba(255,255,255,0.5)":"rgba(255,255,255,0.10)"}`,borderRadius:"50%",width:56,height:56,cursor:"pointer",transition:"all 0.2s",display:"flex",alignItems:"center",justifyContent:"center"}}>{emoji}</button>
+                ))}
+              </div>
+              <button onClick={back} style={{background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:18,padding:"14px 28px",cursor:"pointer",fontFamily:LT,fontSize:14,fontWeight:700,color:"rgba(250,240,232,0.8)"}}>Back to Date tab</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── DATE TAB ───────────────────────────────────────────────────────
+function DateTab({me,partner,userKey,roomData,update,addN,go}){
+  const savedPlans=roomData?.datePlans||[];
+  const watchHistory=roomData?.watchHistory||[];
+  const outfitCards=roomData?.outfitCards||[];
+  const pk=userKey==="A"?"B":"A";
+  const pendingOutfits=outfitCards.filter(c=>c.for===userKey&&!c.seen);
+  const upcomingDates=savedPlans.filter(p=>!p.done&&p.scheduledDate);
+
+  const gradDate="linear-gradient(180deg,#FFE0C0 0%,#FFF5EE 50%,#FFF6F3 100%)";
+  const accentColor="#E85D26";
+  const accentBd="rgba(232,93,38,0.20)";
+  const gradCard="linear-gradient(135deg,#FF8C42,#E85D26)";
+
+  const sections=[
+    {Icon:CalendarHeart,title:"Date Planner",desc:upcomingDates.length>0?`${upcomingDates.length} date${upcomingDates.length>1?"s":""} coming up`:`${savedPlans.length} dates planned together`,key:"dateplanner",grad:gradCard,badge:0},
+    {Icon:Sparkle,title:"Outfit Planner",desc:pendingOutfits.length>0?`${pendingOutfits.length} suggestion from ${partner?.name}`:"Dress for each other",key:"outfitplanner",grad:"linear-gradient(135deg,#C084FC,#8B6BAD)",badge:pendingOutfits.length},
+    {Icon:Star,title:"Watch Party",desc:watchHistory.length>0?`${watchHistory.length} films watched together`:"Plan a movie night",key:"watchparty",grad:"linear-gradient(135deg,#E85D26,#C4522A)"},
+  ];
+
+  return (
+    <div style={{minHeight:"100vh",background:gradDate,paddingBottom:100}}>
+      <div style={{position:"relative",overflow:"hidden"}}>
+        <GradOrb size={300} top={-60} color1="rgba(255,140,66,0.22)" color2="rgba(255,200,140,0.08)"/>
+        <div style={{padding:"32px 22px 24px",position:"relative",zIndex:1,textAlign:"center"}} className="fade-rise">
+          <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:60,height:60,borderRadius:"50%",background:gradCard,boxShadow:SHADOWS.lg,marginBottom:16}} className="hb-float">
+            <CalendarHeart size={30} color="#fff" weight="fill"/>
+          </div>
+          <h2 style={{fontFamily:PF,fontSize:30,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:8}}>Date Night</h2>
+          <p style={{fontSize:14,color:C.muted,fontFamily:LT}}>Plan, dress, and watch together.</p>
+        </div>
+
+        {/* Upcoming date banner */}
+        {upcomingDates.length>0&&(
+          <div style={{padding:"0 18px 16px",position:"relative",zIndex:1}} className="s1">
+            <div style={{background:gradCard,borderRadius:20,padding:"16px 18px",boxShadow:SHADOWS.lg,display:"flex",alignItems:"center",gap:14}}>
+              <div style={{width:44,height:44,borderRadius:14,background:"rgba(255,255,255,0.20)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><CalendarHeart size={22} color="#fff" weight="fill"/></div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",fontFamily:LT,marginBottom:2}}>Upcoming date</div>
+                <div style={{fontSize:15,fontWeight:700,color:"#fff",fontFamily:LT}}>{upcomingDates[0].title}</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",fontFamily:LT}}>📅 {new Date(upcomingDates[0].scheduledDate).toLocaleDateString("en",{month:"long",day:"numeric"})}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{padding:"0 18px",position:"relative",zIndex:1,display:"flex",flexDirection:"column",gap:12}}>
+          {sections.map((s,i)=>(
+            <button key={s.key} onClick={()=>go(s.key)} className={`s${i+1}`} style={{display:"block",width:"100%",background:"rgba(255,255,255,0.95)",border:`1px solid ${accentBd}`,borderRadius:20,padding:"18px 18px",textAlign:"left",cursor:"pointer",fontFamily:LT,boxShadow:SHADOWS.md,transition:"all 0.22s cubic-bezier(0.22,1,0.36,1)"}}
+              onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.boxShadow=SHADOWS.lg;}}
+              onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow=SHADOWS.md;}}
+              onMouseDown={e=>e.currentTarget.style.transform="scale(0.97)"}
+              onMouseUp={e=>e.currentTarget.style.transform="none"}
+            >
+              <div style={{display:"flex",alignItems:"center",gap:16}}>
+                <div style={{width:50,height:50,borderRadius:16,background:s.grad,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:SHADOWS.sm}}><s.Icon size={24} color="#fff" weight="fill"/></div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:16,fontWeight:700,color:C.text,marginBottom:3}}>{s.title}</div>
+                  <div style={{fontSize:12,color:C.muted}}>{s.desc}</div>
+                </div>
+                {s.badge>0&&<div style={{background:C.gradRose,color:"#fff",borderRadius:"50%",width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0,boxShadow:SHADOWS.sm}}>{s.badge}</div>}
+                <CaretRight size={20} color={C.muted}/>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 // ── GLASSMORPHISM TAB BAR ──────────────────────────────────────────────────
 function TabBar({tab,setTab,unread,notesBadge}){
   const tabs=[
-    {key:"home",Icon:HouseSimple,label:"Home"},
-    {key:"play",Icon:GameController,label:"Play"},
-    {key:"us",Icon:Leaf,label:"Us",badge:notesBadge},
-    {key:"profile",Icon:UserCircle,label:"Profile"},
-  ];
+  {key:"home",Icon:HouseSimple,label:"Home"},
+  {key:"play",Icon:GameController,label:"Play"},
+  {key:"dates",Icon:CalendarHeart,label:"Dates"},
+  {key:"us",Icon:Leaf,label:"Us",badge:notesBadge},
+  {key:"profile",Icon:UserCircle,label:"Profile"},
+];
   return (
     <div style={{position:"fixed",bottom:0,left:0,right:0,background:"rgba(255,246,243,0.78)",backdropFilter:"blur(28px)",WebkitBackdropFilter:"blur(28px)",borderTop:"1px solid rgba(255,255,255,0.72)",boxShadow:"0 -8px 40px rgba(212,82,106,0.09),0 -1px 0 rgba(255,255,255,0.6)",padding:"10px 24px 28px",display:"flex",justifyContent:"space-around",zIndex:20}}>
       {tabs.map(t=>(
@@ -1692,11 +2586,14 @@ export default function App() {
         {screen==="grat"     &&<Gratitude     {...shared} back={backHome}/>}
         {screen==="bucket"   &&<BucketList    {...shared} back={backHome}/>}
         {screen==="memories" &&<MemoryJar     {...shared} back={backHome}/>}
-
+{screen==="dateplanner"  &&<DatePlannerScreen  {...shared} back={backHome}/>}
+{screen==="outfitplanner"&&<OutfitPlannerScreen {...shared} back={backHome}/>}
+{screen==="watchparty"   &&<WatchPartyScreen    {...shared} back={backHome}/>}
         {!screen&&<>
           {tab==="home"    &&<HomeTab    {...shared} roomId={roomId} go={go}/>}
           {tab==="play"    &&<PlayTab    {...shared} go={go}/>}
           {tab==="us"      &&<UsTab      {...shared} go={go}/>}
+          {tab==="dates"   &&<DateTab    {...shared} go={go}/>}
           {tab==="profile" &&<ProfileTab {...shared} uid={user?.uid} roomId={roomId} onSignOut={signOut}/>}
         </>}
       </div>
