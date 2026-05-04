@@ -1355,7 +1355,12 @@ function ProfileTab({me,partner,myUser,partnerUser,uid,userKey,roomId,roomData,u
 {/* Settings */}
         <Card style={{marginBottom:20}} className="s6">
           <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:14,fontFamily:LT}}>Settings</div>
-
+{/* Enable notifications */}
+<button onClick={()=>requestNotifPermission(uid)} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(212,82,106,0.05)",border:`1px solid ${C.roseBd}`,borderRadius:14,padding:"13px 16px",cursor:"pointer",fontSize:14,color:C.rose,fontFamily:LT,width:"100%",fontWeight:600,marginBottom:10,transition:"all 0.2s"}}
+  onMouseEnter={e=>e.currentTarget.style.background="rgba(212,82,106,0.10)"}
+  onMouseLeave={e=>e.currentTarget.style.background="rgba(212,82,106,0.05)"}>
+  <Bell size={18} color={C.rose}/> Enable notifications
+</button>
           {/* Privacy policy link */}
           <a href="/privacy.html" target="_blank" style={{display:"flex",alignItems:"center",gap:12,background:"rgba(212,82,106,0.04)",border:`1px solid ${C.roseBd}`,borderRadius:14,padding:"13px 16px",textDecoration:"none",fontSize:14,color:C.rose,fontFamily:LT,width:"100%",fontWeight:600,marginBottom:10,transition:"all 0.2s"}}
             onMouseEnter={e=>e.currentTarget.style.background="rgba(212,82,106,0.08)"}
