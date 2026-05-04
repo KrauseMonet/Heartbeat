@@ -679,7 +679,7 @@ const sendHeart=async()=>{
           <div style={{breakInside:"avoid",marginBottom:12}} className="s3">
             <div className="card-hover" style={{background:"linear-gradient(135deg,rgba(212,82,106,0.10),rgba(255,180,170,0.15))",borderRadius:20,padding:"18px 16px",boxShadow:SHADOWS.sm,border:`1px solid ${C.roseBd}`}}>
               <CalendarBlank size={20} color={C.rose} weight="fill" style={{marginBottom:8}}/>
-              <div style={{fontSize:28,fontWeight:700,color:C.rose,fontFamily:PF,lineHeight:1}}>{days}</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: C.rose, fontFamily: PF, lineHeight: 1 }}>{days}</div>
               <div style={{fontSize:11,color:C.muted,fontFamily:LT,marginTop:4}}>days until you're together</div>
             </div>
           </div>
