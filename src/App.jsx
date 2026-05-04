@@ -3953,8 +3953,32 @@ export default function App() {
   },[partnerUid]);
 
   const update=useCallback((updates)=>roomUpdate(roomId,updates),[roomId]);
-  const addN=useCallback((type,message)=>addNotif(roomId,userKey,type,message),[roomId,userKey]);
-
+const PUSH_TITLES={
+  heartbeat:"💓 Heartbeat",
+  note:"💌 Love Note",
+  qa:"💬 Daily Question",
+  wyr:"🤔 Would You Rather",
+  nhie:"👆 Never Have I Ever",
+  tord:"🎭 Truth or Dare",
+  compat:"📊 Compatibility",
+  checkin:"💛 Check-In",
+  desire:"🔥 Desire",
+  grat:"🙏 Gratitude",
+  bucket:"✨ Bucket List",
+  memory:"🫙 Memory Jar",
+  mood:"😊 Mood",
+  watch:"🎬 Watch Party",
+  outfit:"👗 Outfit Planner",
+  date:"📅 Date Planner",
+  lovelang:"💗 Love Language",
+  tictactoe:"🎮 Tic Tac Toe",
+  wordle:"🟩 Wordle Duel",
+  pictionary:"🎨 Pictionary",
+};
+const addN=useCallback(async(type,message)=>{
+  await addNotif(roomId,userKey,type,message);
+  if(partnerUid) await sendPushToPartner(partnerUid, PUSH_TITLES[type]||"Heartbeat ♥", message);
+},[roomId,userKey,partnerUid]);
   const me=roomData?.users?.[userKey];
   const partner=roomData?.users?.[pk];
   const readKey=userKey==="A"?"readA":"readB";
