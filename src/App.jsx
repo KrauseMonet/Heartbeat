@@ -42,17 +42,10 @@ async function sendPushToPartner(partnerUid, title, body) {
     const snap = await getDoc(doc(db,"users",partnerUid));
     const token = snap.data()?.fcmToken;
     if (!token) return;
-    await fetch("https://fcm.googleapis.com/fcm/send", {
-      method:"POST",
-      headers:{
-        "Authorization":`key=${import.meta.env.VITE_FCM_SERVER_KEY}`,
-        "Content-Type":"application/json",
-      },
-      body: JSON.stringify({
-        to: token,
-        notification:{ title, body, icon:"/images/hero.jpg" },
-        webpush:{ notification:{ title, body, icon:"/images/hero.jpg", vibrate:[200,100,200] } },
-      }),
+    await fetch("/api/send-notification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, title, body }),
     });
   } catch(e) { console.error("Push failed:", e); }
 }
