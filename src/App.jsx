@@ -179,6 +179,7 @@ body::before{content:'';position:fixed;inset:0;background:url('/images/bg.jpg') 
   @keyframes heartFloat{0%,100%{transform:scale(1) translateY(0)}50%{transform:scale(1.08) translateY(-4px)}}
   @keyframes slideIn{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
   @keyframes stagger1{0%{opacity:0;transform:translateY(16px)}100%{opacity:1;transform:none}}
+  @keyframes shake{0%,100%{transform:translateX(0)}10%,50%,90%{transform:translateX(-4px)}30%,70%{transform:translateX(4px)}}
 
   .fade-rise{animation:fadeRise 0.45s cubic-bezier(0.22,1,0.36,1) both;}
   .fade-in{animation:fadeIn 0.35s ease both;}
@@ -2055,7 +2056,7 @@ function OutfitCard({card,me,partner,userKey,outfitColor,outfitBd,gradOutfit,onR
 // ── WATCH PARTY SCREEN ─────────────────────────────────────────────
 function WatchPartyScreen({me,partner,userKey,roomData,update,addN,back}){
   const pk=userKey==="A"?"B":"A";
-  const [step,setStep]=useState("mood"); // mood|suggestions|platform|countdown|done
+  const [step,setStep]=useState("mood");
   const [mood,setMood]=useState("");
   const [loading,setLoading]=useState(false);
   const [suggestions,setSuggestions]=useState(null);
@@ -2072,25 +2073,55 @@ function WatchPartyScreen({me,partner,userKey,roomData,update,addN,back}){
     if(watchData?.[`pick_${pk}`]) setPartnerPicked(watchData[`pick_${pk}`]);
     if(watchData?.countdown) setCountdown(watchData.countdown);
     if(watchData?.step) setStep(watchData.step);
+    if(watchData?.mood) setMood(watchData.mood);
   },[watchData]);
 
-    const getSuggestions=async()=>{
+  // Get fresh suggestions — reshuffles for both users
+  const getSuggestions=async(currentMood)=>{
     setLoading(true);
-    const films=getWatchSuggestions(mood);
+    const m=currentMood||mood;
+    const allFilms=getWatchSuggestions(m);
     const history=(roomData?.watchHistory||[]).map(w=>w.title);
-    const fresh=films.filter(f=>!history.includes(f.title));
-    const pool=fresh.length>=3?fresh:films;
-    await update({[`${watchKey}.suggestions`]:pool,[`${watchKey}.mood`]:mood,[`${watchKey}.step`]:"suggestions"});
-    setSuggestions(pool);
+    // Exclude current suggestions to ensure new ones
+    const currentTitles=(watchData?.suggestions||[]).map(f=>f.title);
+    const fresh=allFilms.filter(f=>!history.includes(f.title)&&!currentTitles.includes(f.title));
+    const pool=fresh.length>=3?fresh:allFilms.filter(f=>!currentTitles.includes(f.title));
+    const finalPool=pool.length>=3?pool:allFilms;
+    // Shuffle and pick 5
+    const shuffled=[...finalPool].sort(()=>Math.random()-0.5).slice(0,5);
+    await update({
+      [`${watchKey}.suggestions`]:shuffled,
+      [`${watchKey}.mood`]:m,
+      [`${watchKey}.step`]:"suggestions",
+      [`${watchKey}.pick_${userKey}`]:null,
+      [`${watchKey}.pick_${pk}`]:null,
+      [`${watchKey}.confirmed`]:null,
+    });
+    setSuggestions(shuffled);
+    setPicked(null);
     setStep("suggestions");
     setLoading(false);
+  };
+
+  // Go back to mood selection — clears everything for both
+  const backToMood=async()=>{
+    await update({
+      [`${watchKey}.step`]:"mood",
+      [`${watchKey}.suggestions`]:null,
+      [`${watchKey}.pick_${userKey}`]:null,
+      [`${watchKey}.pick_${pk}`]:null,
+      [`${watchKey}.confirmed`]:null,
+    });
+    setSuggestions(null);
+    setPicked(null);
+    setMood("");
+    setStep("mood");
   };
 
   const pickFilm=async(film)=>{
     setPicked(film);
     await update({[`${watchKey}.pick_${userKey}`]:film});
     await addN("watch",`${me?.name} picked ${film.title}`);
-    // Check if partner also picked
     if(watchData?.[`pick_${pk}`]){
       const theirPick=watchData[`pick_${pk}`];
       if(theirPick.title===film.title){
@@ -2101,7 +2132,7 @@ function WatchPartyScreen({me,partner,userKey,roomData,update,addN,back}){
   };
 
   const startCountdown=async()=>{
-    const ts=Date.now()+10000; // 10 seconds from now
+    const ts=Date.now()+10000;
     await update({[`${watchKey}.countdown`]:ts,[`${watchKey}.step`]:"countdown"});
     setCountdown(ts);
     setStep("countdown");
@@ -2111,7 +2142,6 @@ function WatchPartyScreen({me,partner,userKey,roomData,update,addN,back}){
   const sendReaction=async(emoji)=>{
     setReaction(emoji);
     await update({[`${watchKey}.reaction_${userKey}`]:emoji});
-    // Save to history
     const confirmed=watchData?.confirmed;
     if(confirmed){
       const entry={id:Date.now()+Math.random(),title:confirmed.title,mood,platform,watchedAt:Date.now(),[`reaction_${userKey}`]:emoji};
@@ -2130,17 +2160,20 @@ function WatchPartyScreen({me,partner,userKey,roomData,update,addN,back}){
     return <div style={{fontSize:96,fontWeight:700,color:"#fff",fontFamily:PF,lineHeight:1,textShadow:"0 4px 24px rgba(0,0,0,0.3)"}}>{remaining>0?remaining:"▶"}</div>;
   };
 
-  const gradWatch="linear-gradient(135deg,#1A0A05,#2A1A08)";
   const watchColor="#E8A080";
 
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#1A0A05 0%,#2A1A08 40%,#FFF6F3 100%)",paddingBottom:100}}>
       <div style={{position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:-80,left:"50%",transform:"translateX(-50%)",width:400,height:400,borderRadius:"50%",background:"radial-gradient(circle,rgba(232,140,80,0.20) 0%,transparent 70%)",filter:"blur(40px)",pointerEvents:"none"}}/>
-
         <div style={{padding:"22px 18px 0",position:"relative",zIndex:1}}>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:28}}>
-            <button onClick={back} style={{background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:14,cursor:"pointer",padding:"9px 11px",lineHeight:1,display:"flex",alignItems:"center"}}><ArrowLeft size={20} color="rgba(255,255,255,0.7)"/></button>
+            <button
+              onClick={step==="suggestions"?backToMood:back}
+              style={{background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:14,cursor:"pointer",padding:"9px 11px",lineHeight:1,display:"flex",alignItems:"center"}}
+            >
+              <ArrowLeft size={20} color="rgba(255,255,255,0.7)"/>
+            </button>
             <div style={{flex:1}}>
               <h2 style={{fontFamily:PF,fontSize:22,fontWeight:400,fontStyle:"italic",color:"#FAF0E8"}}>Watch Party</h2>
               <div style={{fontSize:12,color:"rgba(250,240,232,0.5)",fontFamily:LT}}>Watch something together tonight</div>
@@ -2163,17 +2196,27 @@ function WatchPartyScreen({me,partner,userKey,roomData,update,addN,back}){
                   </button>
                 ))}
               </div>
-              {loading?<Spinner text="Finding films..."/>:<button onClick={getSuggestions} disabled={!mood} className="card-hover" style={{display:"block",width:"100%",borderRadius:18,padding:"15px 24px",fontFamily:LT,fontSize:15,fontWeight:700,background:"linear-gradient(135deg,#E85D26,#C4522A)",color:"#FAF0E8",border:"none",cursor:mood?"pointer":"not-allowed",opacity:mood?1:0.45,boxShadow:"0 8px 24px rgba(232,93,38,0.40)"}}>Find films →</button>}
+              {loading?<Spinner text="Finding films..."/>:<button onClick={()=>getSuggestions(mood)} disabled={!mood} className="card-hover" style={{display:"block",width:"100%",borderRadius:18,padding:"15px 24px",fontFamily:LT,fontSize:15,fontWeight:700,background:"linear-gradient(135deg,#E85D26,#C4522A)",color:"#FAF0E8",border:"none",cursor:mood?"pointer":"not-allowed",opacity:mood?1:0.45,boxShadow:"0 8px 24px rgba(232,93,38,0.40)"}}>Find films →</button>}
             </div>
           )}
 
           {step==="suggestions"&&suggestions&&(
             <div className="fade-rise">
-              <div style={{marginBottom:20}}>
-                <h3 style={{fontFamily:PF,fontSize:22,fontStyle:"italic",fontWeight:400,color:"#FAF0E8",marginBottom:6}}>Pick your film</h3>
-                <p style={{fontSize:13,color:"rgba(250,240,232,0.5)",fontFamily:LT}}>Both of you pick — if you match, it's confirmed.</p>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+                <div>
+                  <h3 style={{fontFamily:PF,fontSize:22,fontStyle:"italic",fontWeight:400,color:"#FAF0E8",marginBottom:4}}>Pick your film</h3>
+                  <p style={{fontSize:13,color:"rgba(250,240,232,0.5)",fontFamily:LT}}>Both pick — if you match, it's confirmed.</p>
+                </div>
+                {/* Reshuffle button */}
+                <button
+                  onClick={()=>getSuggestions(mood)}
+                  disabled={loading}
+                  style={{background:"rgba(232,93,38,0.20)",border:"1px solid rgba(232,93,38,0.40)",borderRadius:14,padding:"8px 14px",cursor:"pointer",fontFamily:LT,fontSize:12,fontWeight:700,color:watchColor,display:"flex",alignItems:"center",gap:6,flexShrink:0}}
+                >
+                  <Shuffle size={14} color={watchColor}/> Reshuffle
+                </button>
               </div>
-              {suggestions.map((film,i)=>(
+              {loading?<Spinner text="Finding new films..."/>:suggestions.map((film,i)=>(
                 <button key={i} onClick={()=>pickFilm(film)} className="card-hover" style={{display:"block",width:"100%",background:picked?.title===film.title?"rgba(232,93,38,0.20)":partnerPicked?.title===film.title?"rgba(107,143,113,0.15)":"rgba(255,255,255,0.06)",border:`2px solid ${picked?.title===film.title?"rgba(232,93,38,0.60)":partnerPicked?.title===film.title?"rgba(107,143,113,0.40)":"rgba(255,255,255,0.10)"}`,borderRadius:20,padding:"18px 16px",fontFamily:LT,textAlign:"left",marginBottom:12,cursor:"pointer",transition:"all 0.2s"}}>
                   <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,marginBottom:8}}>
                     <div style={{fontSize:16,fontWeight:700,color:"#FAF0E8",fontFamily:PF,fontStyle:"italic",flex:1}}>{film.title}</div>
@@ -2202,9 +2245,7 @@ function WatchPartyScreen({me,partner,userKey,roomData,update,addN,back}){
                   </button>
                 ))}
               </div>
-              {platform&&(
-                <a href={PLATFORMS.find(p=>p.key===platform)?.url} target="_blank" rel="noreferrer" style={{display:"block",textAlign:"center",fontSize:13,color:watchColor,fontFamily:LT,fontWeight:700,marginBottom:20,textDecoration:"none"}}>→ Open {PLATFORMS.find(p=>p.key===platform)?.label}</a>
-              )}
+              {platform&&<a href={PLATFORMS.find(p=>p.key===platform)?.url} target="_blank" rel="noreferrer" style={{display:"block",textAlign:"center",fontSize:13,color:watchColor,fontFamily:LT,fontWeight:700,marginBottom:20,textDecoration:"none"}}>→ Open {PLATFORMS.find(p=>p.key===platform)?.label}</a>}
               <button onClick={startCountdown} disabled={!platform} className="card-hover" style={{display:"block",width:"100%",borderRadius:18,padding:"15px 24px",fontFamily:LT,fontSize:15,fontWeight:700,background:"linear-gradient(135deg,#E85D26,#C4522A)",color:"#FAF0E8",border:"none",cursor:platform?"pointer":"not-allowed",opacity:platform?1:0.45,boxShadow:"0 8px 24px rgba(232,93,38,0.40)"}}>Start the countdown →</button>
             </div>
           )}
@@ -2219,7 +2260,6 @@ function WatchPartyScreen({me,partner,userKey,roomData,update,addN,back}){
                   <button key={emoji} onClick={()=>sendReaction(emoji)} style={{fontSize:32,background:reaction===emoji?"rgba(255,255,255,0.20)":"rgba(255,255,255,0.08)",border:`2px solid ${reaction===emoji?"rgba(255,255,255,0.5)":"rgba(255,255,255,0.10)"}`,borderRadius:"50%",width:56,height:56,cursor:"pointer",transition:"all 0.2s",display:"flex",alignItems:"center",justifyContent:"center"}}>{emoji}</button>
                 ))}
               </div>
-              {roomData?.[`${watchKey}.reaction_${pk}`]&&<div style={{fontSize:13,color:"rgba(250,240,232,0.55)",fontFamily:LT,marginTop:20}}>{partner?.name} reacted {roomData[`${watchKey}.reaction_${pk}`]}</div>}
               <button onClick={()=>setStep("done")} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"rgba(250,240,232,0.4)",fontFamily:LT,marginTop:32,display:"block",width:"100%"}}>Film's over →</button>
             </div>
           )}
@@ -3153,154 +3193,314 @@ await addN("tictactoe", `🏆 ${sessionWinner === userKey ? "You won" : "Partner
 }
 
 // ── WORDLE DUEL ────────────────────────────────────────────────────
-function WordleDuel({ me, partner, userKey, roomData, update, addN, back }) {
+const VALID_WORDLE_WORDS = new Set([
+  "about","above","abuse","actor","acute","admit","adopt","adult","after","again","agent","agree","ahead","alarm","album","alert","alike","align","alive","alley","allow","alone","along","altar","alter","angel","anger","angle","angry","anime","ankle","annex","antic","apart","apple","apply","arena","argue","arise","armor","aroma","arose","array","arson","aside","asset","audio","audit","avoid","awake","award","aware","awful","bacon","badge","badly","bagel","baker","bands","bandy","basic","basin","basis","batch","beach","beard","beast","beats","began","begin","being","belle","belly","below","bench","bends","berry","berth","beset","bests","biker","binge","birds","birth","bison","biter","black","blade","blame","bland","blank","blare","blast","blaze","bleak","bleat","bleed","blend","bless","blind","blink","bliss","blitz","bloat","block","blond","blood","blown","blues","blunt","blush","board","boast","bonus","boost","booth","bossy","bound","boxer","brave","brawn","bread","break","bream","breed","brick","bride","brief","bring","brisk","broke","brook","broom","broth","brown","brush","buddy","build","built","bulge","burst","buyer","bylaw","cabal","cable","cadet","camel","candy","canon","caper","carry","catch","cause","cease","chain","chair","chalk","chaos","charm","chase","cheap","cheat","check","cheek","cheer","chess","chest","chief","child","chill","chips","choir","chord","chore","chose","civic","civil","clack","claim","clamp","clash","class","clast","clean","clear","clerk","click","cliff","climb","cling","clock","close","cloth","cloud","clown","coach","coast","cobra","comic","comma","coral","could","count","coupe","court","cover","craft","crane","crash","crazy","cream","creek","creep","crest","crime","crimp","crisp","cross","crowd","crown","cruel","crush","crust","curve","cycle","daily","dance","datum","debut","decoy","delay","delta","depth","derby","devil","dirty","disco","ditty","dizzy","dogma","doubt","dough","dowdy","dowry","draft","drain","drape","drawl","drawn","dread","dream","dress","dried","drift","drink","drive","drool","droop","drove","drown","dryer","dumpy","dusty","dwarf","dwell","dying","eager","eagle","early","earth","easel","eight","elect","elite","empty","enact","ended","enemy","enjoy","enter","entry","envoy","equal","error","essay","every","exact","exalt","exert","exile","exist","extra","fable","faced","faint","fairy","faith","false","fancy","fatal","fault","feast","fence","ferry","fetch","fever","fiber","fifth","fifty","fight","first","fixed","flame","flank","flare","flash","flask","flats","flaw","fleet","flesh","flick","flinch","float","flock","floor","floss","flour","fluid","flush","focal","foggy","force","forge","forth","found","frame","franc","fraud","freak","fresh","front","frost","froze","fruit","fully","funds","funny","fuzzy","gamer","ghost","given","gland","glare","glass","gloom","glory","gloss","glove","going","grace","grade","grain","grand","grant","grasp","grass","grate","gravy","graze","great","greed","greet","grief","grill","grind","groan","groin","grope","gross","group","grove","growl","gruel","gruff","guard","guess","guest","guide","guild","guile","guise","gulch","gusto","hairy","halve","handy","happy","harsh","hasty","haven","heart","heavy","hedge","hence","herbs","hilly","hinge","hippo","hoist","homer","honey","honor","horse","hotel","hound","house","human","husky","hyena","hyper","ideal","idiom","idiot","image","imply","infer","inner","input","inter","irony","issue","ivory","jaunt","jazzy","joust","judge","juice","juicy","jumpy","kayak","knack","kneel","knelt","knife","knock","knoll","known","label","lance","large","laser","latch","later","laugh","layer","leapt","learn","least","leave","ledge","legal","lemon","level","light","liner","liver","llama","local","lodge","lofty","logic","loose","lover","lower","lucid","lucky","lunar","lusty","lyric","magic","major","maker","manor","maple","march","marry","match","matte","maxim","media","mercy","merge","merit","metal","minor","mirth","model","mogul","moist","money","monks","month","moral","moron","mount","mourn","movie","multi","music","naive","nanny","nerve","never","night","noble","noise","norms","notch","noted","novel","nudge","nurse","nymph","obese","occur","ocean","offer","often","onset","order","other","otter","outer","oxide","ozone","paint","papal","paper","party","pasta","patch","pause","payee","peace","peach","pearl","pedal","petal","phone","photo","piano","piece","pilot","pinch","pirate","pitch","pixel","pizza","place","plain","plane","plank","plant","plate","plaza","plead","pluck","plumb","plume","plump","plunge","plunk","plush","point","polar","poppy","porch","posed","pouch","poult","pound","pouty","power","prank","press","price","prick","pride","prime","prince","print","prism","privy","prize","probe","prone","prong","proof","prose","proud","prowl","psalm","pubic","pulse","punch","pupil","purge","pushy","pygmy","queen","query","queue","quick","quiet","quirk","quota","quote","rabbi","radar","radix","rainy","rally","range","rapid","ratio","reach","realm","rebel","rebus","recut","reedy","refit","regal","reign","relax","renew","repay","repel","repot","rerun","resin","retch","revel","rider","ridge","rifle","right","risky","rival","rivet","river","robot","rocky","rouge","rough","round","roust","rover","rowdy","ruins","ruler","rural","rusty","sadly","saint","salsa","salty","sandy","sauce","saute","savor","savvy","scale","scald","scalp","scamp","scant","scare","scarf","scary","scene","scone","scoop","score","scorn","scout","scowl","scram","scrub","seize","sense","serve","setup","seven","shade","shaft","shaky","shame","shape","share","sharp","shawl","sheen","shelf","shell","shift","shiny","shoot","shore","short","shout","shove","shown","shrub","shrug","sight","silly","since","sixth","sixty","sized","skate","skier","skill","skimp","skirt","skull","skunk","slain","slang","slant","slash","sleek","sleep","sleet","slick","slide","sling","slink","slope","slosh","sloth","slump","slung","slunk","slurp","slush","small","smack","smart","smash","smear","smell","smirk","smoky","snack","snail","snake","snare","snark","sneak","snide","sniff","snore","snort","snout","snowy","snuck","snuff","solar","solve","sonic","sorry","south","space","spade","spare","spark","spawn","speak","spear","speck","speed","spell","spend","spill","spine","spite","spoil","spook","spoon","sport","spout","sprain","spray","spree","sprig","sprint","squad","squat","squid","stack","staff","stage","stain","stale","stall","stamp","stand","stank","stark","start","stash","state","stays","steak","steal","steam","steed","steel","steep","steer","stern","stick","stiff","still","stock","stomp","stone","stood","store","stork","storm","story","stout","stove","strap","straw","stray","strum","strut","stuck","study","stuff","stump","stung","stunk","stunt","style","suite","sulky","sunny","super","surge","swamp","swarm","swear","sweat","sweep","sweet","swept","swift","swill","swipe","swirl","sword","swore","sworn","syrup","taint","tally","tangy","tapir","tardy","taunt","tawny","teach","tease","teeth","tempo","tense","terse","theft","their","there","these","thick","thing","think","third","thorn","those","three","threw","throw","thrum","thud","thumb","thump","tiara","tidal","tiger","tight","timer","tipsy","tired","titan","title","toast","today","token","tonal","torch","total","totem","touch","tough","toxic","trace","track","trade","trail","train","tramp","traps","trash","trawl","treat","trend","trial","tribe","trick","tripe","trite","troll","tromp","troop","troth","trout","trove","truce","truck","truly","trump","trunk","truss","trust","truth","tulip","tumor","tuner","tunic","tusks","tutor","twang","tweak","tweed","twerp","twice","twill","twirl","twist","twixt","ulcer","ultra","umbra","uncle","under","unify","union","unity","until","upper","upset","urban","utter","valor","value","vapor","vault","vaunt","venom","verse","vicar","video","vigor","viola","viper","viral","virus","visor","visit","vista","vital","vivid","vocal","vodka","voila","voice","vouch","wacky","waltz","waste","watch","water","weary","weave","wedge","weird","whale","wharf","wheat","wheel","where","while","whiff","whine","whirl","whisk","white","whole","whose","wider","witch","woman","women","world","worry","worse","worst","worth","would","wound","wrath","wring","wrote","yacht","yearn","young","yours","youth","zebra","zesty","zilch","zippy","zonal"
+]);
+
+function WordleDuel({me, partner, userKey, roomData, update, addN, back}) {
   const pk = userKey === "A" ? "B" : "A";
   const today = todayKey();
   const gameKey = `wordle_${today}`;
   const dailyWord = getDailyWordle().toUpperCase();
+
   const game = roomData?.[gameKey] || {
-    A: { guesses: [], status: "playing" },
-    B: { guesses: [], status: "playing" },
+    A: {guesses: [], status: "playing"},
+    B: {guesses: [], status: "playing"},
     revealed: false,
-    startedAt: Date.now(),
   };
 
-  const myGame = game[userKey];
-  const [input, setInput] = useState("");
-  const VALID_WORDS = getPictionaryWords("general", 100); // Simplified for demo
+  const myGame = game[userKey] || {guesses: [], status: "playing"};
+  const [currentGuess, setCurrentGuess] = useState("");
+  const [shake, setShake] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleGuess = async () => {
-    if (input.length !== 5 || !VALID_WORDS.includes(input.toLowerCase())) return;
-    
-    const newGuesses = [...(myGame.guesses || []), input];
-    const won = input === dailyWord;
-    
+  const MAX_GUESSES = 6;
+  const WORD_LENGTH = 5;
+
+  // Get tile state for a completed guess
+  const getTileStates = (guess) => {
+    const result = Array(WORD_LENGTH).fill("absent");
+    const wordArr = dailyWord.split("");
+    const guessArr = guess.split("");
+    const used = Array(WORD_LENGTH).fill(false);
+
+    // First pass — correct positions
+    guessArr.forEach((l, i) => {
+      if (l === wordArr[i]) {
+        result[i] = "correct";
+        used[i] = true;
+      }
+    });
+
+    // Second pass — present but wrong position
+    guessArr.forEach((l, i) => {
+      if (result[i] === "correct") return;
+      const j = wordArr.findIndex((w, wi) => w === l && !used[wi]);
+      if (j !== -1) {
+        result[i] = "present";
+        used[j] = true;
+      }
+    });
+
+    return result;
+  };
+
+  // Build keyboard state from all guesses
+  const getKeyboardState = () => {
+    const state = {};
+    myGame.guesses.forEach(guess => {
+      const states = getTileStates(guess);
+      guess.split("").forEach((letter, i) => {
+        const current = state[letter];
+        const next = states[i];
+        if (current === "correct") return;
+        if (next === "correct" || current !== "correct") state[letter] = next;
+      });
+    });
+    return state;
+  };
+
+  const keyboardState = getKeyboardState();
+
+  const submitGuess = async () => {
+    const g = currentGuess.toUpperCase();
+    if (g.length !== WORD_LENGTH) {
+      setError("Not enough letters");
+      setShake(true);
+      setTimeout(() => setShake(false), 600);
+      return;
+    }
+    if (!VALID_WORDLE_WORDS.has(g.toLowerCase())) {
+      setError("Not a valid word");
+      setShake(true);
+      setTimeout(() => { setShake(false); setError(""); }, 1200);
+      return;
+    }
+
+    setError("");
+    const newGuesses = [...myGame.guesses, g];
+    const won = g === dailyWord;
+    const lost = !won && newGuesses.length >= MAX_GUESSES;
+
     const updated = {
       ...game,
       [userKey]: {
-        ...myGame,
         guesses: newGuesses,
-        status: won ? "solved" : newGuesses.length >= 6 ? "lost" : "playing",
+        status: won ? "solved" : lost ? "lost" : "playing",
       },
     };
 
-    if (won) {
-      await addN("wordle", `${me?.name} solved today's Wordle in ${newGuesses.length} guesses!`);
-    }
+    if (won) await addN("wordle", `${me?.name} solved today's Wordle in ${newGuesses.length} guesses!`);
 
-    if (updated[userKey].status !== "playing" && updated[pk].status !== "playing") {
-      updated.revealed = true;
-    }
+    const bothDone = updated[userKey].status !== "playing" && (updated[pk]?.status || "playing") !== "playing";
+    if (bothDone) updated.revealed = true;
 
-    await update({ [gameKey]: updated });
-    setInput("");
+    await update({[gameKey]: updated});
+    setCurrentGuess("");
   };
 
-  const getLetterColor = (letter, position, guess) => {
-    if (letter === dailyWord[position]) return C.sage;
-    if (dailyWord.includes(letter)) return C.gold;
-    return "rgba(26,10,5,0.2)";
+  const handleKey = (key) => {
+    if (myGame.status !== "playing") return;
+    if (key === "ENTER") { submitGuess(); return; }
+    if (key === "⌫") { setCurrentGuess(c => c.slice(0, -1)); setError(""); return; }
+    if (currentGuess.length < WORD_LENGTH && /^[A-Z]$/.test(key)) {
+      setCurrentGuess(c => c + key);
+      setError("");
+    }
   };
+
+  const TILE_COLORS = {
+    correct: {bg:"#538d4e", border:"#538d4e", color:"#fff"},
+    present: {bg:"#b59f3b", border:"#b59f3b", color:"#fff"},
+    absent:  {bg:"#3a3a3c", border:"#3a3a3c", color:"#fff"},
+    empty:   {bg:"transparent", border:"rgba(26,10,5,0.15)", color:C.text},
+    tbd:     {bg:"transparent", border:"rgba(26,10,5,0.4)", color:C.text},
+  };
+
+  const KEY_COLORS = {
+    correct: {bg:"#538d4e", color:"#fff"},
+    present: {bg:"#b59f3b", color:"#fff"},
+    absent:  {bg:"#3a3a3c", color:"#fff"},
+    default: {bg:"rgba(26,10,5,0.08)", color:C.text},
+  };
+
+  const KEYBOARD_ROWS = [
+    ["Q","W","E","R","T","Y","U","I","O","P"],
+    ["A","S","D","F","G","H","J","K","L"],
+    ["ENTER","Z","X","C","V","B","N","M","⌫"],
+  ];
+
+  // Build grid rows
+  const rows = [];
+  for (let i = 0; i < MAX_GUESSES; i++) {
+    if (i < myGame.guesses.length) {
+      // Completed guess
+      const guess = myGame.guesses[i];
+      const states = getTileStates(guess);
+      rows.push({letters: guess.split(""), states, type: "done"});
+    } else if (i === myGame.guesses.length && myGame.status === "playing") {
+      // Current guess row
+      const letters = currentGuess.split("").concat(Array(WORD_LENGTH).fill("")).slice(0, WORD_LENGTH);
+      rows.push({letters, states: Array(WORD_LENGTH).fill("tbd"), type: "current", shake});
+    } else {
+      // Empty row
+      rows.push({letters: Array(WORD_LENGTH).fill(""), states: Array(WORD_LENGTH).fill("empty"), type: "empty"});
+    }
+  }
 
   return (
-    <ScreenWrap gradient={C.gradPlay}>
-      <div style={{ position: "relative", overflow: "hidden", paddingBottom: 80 }}>
-        <GradOrb size={280} top={-50} />
-        
-        <div style={{ padding: "22px 18px 0", position: "relative", zIndex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-            <BackBtn onClick={back} />
-            <div style={{ flex: 1 }}>
-              <h2 style={{ fontFamily: PF, fontSize: 22, fontWeight: 400, fontStyle: "italic", color: C.text }}>Wordle Duel</h2>
-              <div style={{ fontSize: 12, color: C.muted, fontFamily: LT }}>Same word, async solving</div>
+    <ScreenWrap gradient={C.gradHome}>
+      <div style={{position:"relative",overflow:"hidden"}}>
+        <GradOrb size={280} top={-50}/>
+        <div style={{padding:"22px 18px 0",position:"relative",zIndex:1}}>
+
+          {/* Header */}
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+            <BackBtn onClick={back}/>
+            <div style={{flex:1,textAlign:"center"}}>
+              <h2 style={{fontFamily:PF,fontSize:22,fontWeight:400,fontStyle:"italic",color:C.text}}>Wordle Duel</h2>
+              <div style={{fontSize:11,color:C.muted,fontFamily:LT}}>
+                {new Date().toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric"})}
+              </div>
+            </div>
+            {/* Partner status badge */}
+            <div style={{background:C.roseSoft,borderRadius:12,padding:"5px 10px",border:`1px solid ${C.roseBd}`}}>
+              <div style={{fontSize:10,fontWeight:700,color:C.rose,fontFamily:LT,textAlign:"center"}}>
+                {game[pk]?.status === "solved" ? "✓ Done" : game[pk]?.status === "lost" ? "✗ Lost" : `${game[pk]?.guesses?.length||0}/6`}
+              </div>
+              <div style={{fontSize:9,color:C.muted,fontFamily:LT,textAlign:"center"}}>{partner?.name}</div>
             </div>
           </div>
 
-          {/* My guesses */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10, fontFamily: LT }}>Your guesses</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {myGame.guesses?.map((guess, i) => (
-                <div key={i} style={{ display: "flex", gap: 6 }}>
-                  {guess.split("").map((letter, j) => (
-                    <div
-                      key={j}
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 10,
-                        background: getLetterColor(letter, j, guess),
-                        border: `2px solid ${getLetterColor(letter, j, guess)}20`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: "#fff",
-                        fontFamily: PF,
-                      }}
-                    >
-                      {letter}
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Input */}
-          {myGame.status === "playing" && (
-            <div style={{ marginBottom: 20 }}>
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value.toUpperCase().slice(0, 5))}
-                onKeyPress={(e) => e.key === "Enter" && handleGuess()}
-                placeholder="Enter 5-letter word"
-                style={{
-                  width: "100%",
-                  padding: "12px 16px",
-                  borderRadius: 14,
-                  border: `2px solid ${C.roseBd}`,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  fontFamily: LT,
-                  letterSpacing: "0.1em",
-                  textTransform: "uppercase",
-                  marginBottom: 12,
-                }}
-              />
-              <Btn onClick={handleGuess} disabled={input.length !== 5} style={{ background: C.gradRose, border: "none", color: "#fff" }}>
-                Guess ({myGame.guesses?.length || 0}/6)
-              </Btn>
+          {/* Error message */}
+          {error&&(
+            <div style={{textAlign:"center",marginBottom:8}}>
+              <span style={{background:"rgba(26,10,5,0.85)",color:"#fff",fontFamily:LT,fontSize:13,fontWeight:700,padding:"6px 14px",borderRadius:8}}>{error}</span>
             </div>
           )}
 
+          {/* Grid */}
+          <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"center",marginBottom:20}}>
+            {rows.map((row, ri) => (
+              <div
+                key={ri}
+                style={{
+                  display:"flex",gap:6,
+                  animation: row.shake ? "shake 0.6s ease" : "none",
+                }}
+              >
+                {row.letters.map((letter, li) => {
+                  const state = row.type === "done" ? row.states[li] : row.type === "current" && letter ? "tbd" : "empty";
+                  const tc = TILE_COLORS[state] || TILE_COLORS.empty;
+                  return (
+                    <div key={li} style={{
+                      width: 52, height: 52,
+                      border: `2px solid ${tc.border}`,
+                      background: tc.bg,
+                      borderRadius: 4,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 22,
+                      fontWeight: 700,
+                      color: tc.color,
+                      fontFamily: LT,
+                      transition: "background 0.3s, border 0.3s",
+                    }}>
+                      {letter}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+
+          {/* Status messages */}
           {myGame.status === "solved" && (
-            <div style={{ background: C.sageSoft, border: `1px solid ${C.sageBd}`, borderRadius: 16, padding: 14, textAlign: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: C.sage, fontFamily: LT }}>✓ You solved it in {myGame.guesses?.length} guesses!</div>
+            <div style={{textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:20,fontWeight:700,color:C.sage,fontFamily:PF,fontStyle:"italic",marginBottom:4}}>
+                🎉 Solved in {myGame.guesses.length} {myGame.guesses.length===1?"guess":"guesses"}!
+              </div>
+              <div style={{fontSize:13,color:C.muted,fontFamily:LT}}>
+                {game[pk]?.status==="playing"?`Waiting for ${partner?.name}...`:"Both done — see results below"}
+              </div>
             </div>
           )}
 
           {myGame.status === "lost" && (
-            <div style={{ background: "rgba(212,82,106,0.08)", border: `1px solid ${C.roseBd}`, borderRadius: 16, padding: 14, textAlign: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: C.rose, fontFamily: LT }}>Game over — 6 guesses used</div>
+            <div style={{textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:16,fontWeight:700,color:C.rose,fontFamily:LT,marginBottom:4}}>
+                The word was <span style={{fontFamily:PF,fontStyle:"italic"}}>{dailyWord}</span>
+              </div>
+              <div style={{fontSize:13,color:C.muted,fontFamily:LT}}>
+                {game[pk]?.status==="playing"?`Waiting for ${partner?.name}...`:""}
+              </div>
             </div>
           )}
 
-          {/* Partner status */}
-          <Card elevated>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, fontFamily: LT }}>
-              {partner?.name}
+          {/* Results when both done */}
+          {game.revealed && (
+            <Card elevated style={{marginBottom:16,textAlign:"center"}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>Today's result</div>
+              <div style={{display:"flex",justifyContent:"center",gap:32}}>
+                {[[userKey,me?.name],[pk,partner?.name]].map(([k,name])=>(
+                  <div key={k} style={{textAlign:"center"}}>
+                    <div style={{fontSize:13,fontWeight:700,color:C.muted,fontFamily:LT,marginBottom:4}}>{name}</div>
+                    <div style={{fontSize:20,fontWeight:700,color:game[k]?.status==="solved"?C.sage:C.rose,fontFamily:PF}}>
+                      {game[k]?.status==="solved"?`${game[k].guesses.length}/6`:"X/6"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {game[userKey]?.status==="solved"&&game[pk]?.status==="solved"&&(
+                <div style={{fontSize:13,color:C.muted,fontFamily:LT,marginTop:10}}>
+                  {game[userKey].guesses.length < game[pk].guesses.length
+                    ? `You solved it faster! 🏆`
+                    : game[userKey].guesses.length > game[pk].guesses.length
+                    ? `${partner?.name} solved it faster! 🏆`
+                    : "Tied! 🤝"}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Keyboard */}
+          {myGame.status === "playing" && (
+            <div style={{display:"flex",flexDirection:"column",gap:8,alignItems:"center",paddingBottom:20}}>
+              {KEYBOARD_ROWS.map((row, ri) => (
+                <div key={ri} style={{display:"flex",gap:6}}>
+                  {row.map(key => {
+                    const ks = keyboardState[key];
+                    const kc = ks ? KEY_COLORS[ks] : KEY_COLORS.default;
+                    const isWide = key === "ENTER" || key === "⌫";
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => handleKey(key)}
+                        style={{
+                          width: isWide ? 56 : 34,
+                          height: 56,
+                          borderRadius: 6,
+                          border: "none",
+                          background: kc.bg,
+                          color: kc.color,
+                          fontFamily: LT,
+                          fontSize: isWide ? 11 : 14,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          transition: "background 0.2s",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {key}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
-            <div style={{ fontSize: 14, color: C.text, fontFamily: LT }}>
-              {game[pk].status === "playing"
-                ? `Still solving... (${game[pk].guesses?.length || 0}/6 guesses)`
-                : game[pk].status === "solved"
-                ? `Solved in ${game[pk].guesses?.length} guesses!`
-                : "Ran out of guesses"}
-            </div>
-          </Card>
+          )}
+
         </div>
       </div>
     </ScreenWrap>
@@ -3308,163 +3508,391 @@ function WordleDuel({ me, partner, userKey, roomData, update, addN, back }) {
 }
 
 // ── PICTIONARY ─────────────────────────────────────────────────────
-function Pictionary({ me, partner, userKey, roomData, update, addN, back }) {
+function Pictionary({me, partner, userKey, roomData, update, addN, back}) {
   const pk = userKey === "A" ? "B" : "A";
   const today = todayKey();
   const gameKey = `pictionary_${today}`;
   const game = roomData?.[gameKey] || null;
+  const [lobbySettings, setLobbySettings] = useState({rounds: 0, drawTime: 60, hints: 0});
+  const [inLobby, setInLobby] = useState(!game);
+  const [guess, setGuess] = useState("");
+  const [color, setColor] = useState("#1A0A05");
+  const [brushSize, setBrushSize] = useState(4);
+  const [isEraser, setIsEraser] = useState(false);
+  const canvasRef = useRef(null);
+  const drawing = useRef(false);
+  const lastPos = useRef(null);
+  const strokeBuffer = useRef([]);
+  const syncTimer = useRef(null);
 
-  const [lobbyMode, setLobbyMode] = useState(!game);
-  const [rounds, setRounds] = useState(0);
-  const [drawTime, setDrawTime] = useState(60);
-  const [gameState, setGameState] = useState("lobby"); // lobby|drawing|guessing|result
+  // When game updates in Firestore, redraw strokes on canvas
+  useEffect(() => {
+    if (!game?.strokes || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    game.strokes.forEach(stroke => {
+      if (stroke.points.length < 2) return;
+      ctx.beginPath();
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth = stroke.size;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.moveTo(stroke.points[0].x * canvas.width, stroke.points[0].y * canvas.height);
+      stroke.points.forEach(p => ctx.lineTo(p.x * canvas.width, p.y * canvas.height));
+      ctx.stroke();
+    });
+  }, [game?.strokes]);
 
-  if (lobbyMode && !game) {
+  // Sync stroke buffer to Firestore every 200ms
+  const syncStrokes = async () => {
+    if (strokeBuffer.current.length === 0) return;
+    const newStrokes = [...(game?.strokes || []), ...strokeBuffer.current];
+    strokeBuffer.current = [];
+    await update({[`${gameKey}.strokes`]: newStrokes});
+  };
+
+  const getPos = (e, canvas) => {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: (clientX - rect.left) / rect.width,
+      y: (clientY - rect.top) / rect.height,
+    };
+  };
+
+  const startDraw = (e) => {
+    if (game?.currentDrawer !== userKey) return;
+    e.preventDefault();
+    drawing.current = true;
+    const canvas = canvasRef.current;
+    const pos = getPos(e, canvas);
+    lastPos.current = {points: [pos], color: isEraser ? "#FFF6F3" : color, size: isEraser ? brushSize * 4 : brushSize};
+  };
+
+  const draw = (e) => {
+    if (!drawing.current || !canvasRef.current) return;
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const pos = getPos(e, canvas);
+    lastPos.current.points.push(pos);
+
+    // Draw locally immediately for smooth feel
+    const pts = lastPos.current.points;
+    if (pts.length >= 2) {
+      ctx.beginPath();
+      ctx.strokeStyle = lastPos.current.color;
+      ctx.lineWidth = lastPos.current.size;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.moveTo(pts[pts.length - 2].x * canvas.width, pts[pts.length - 2].y * canvas.height);
+      ctx.lineTo(pts[pts.length - 1].x * canvas.width, pts[pts.length - 1].y * canvas.height);
+      ctx.stroke();
+    }
+
+    // Batch sync every 200ms
+    clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(syncStrokes, 200);
+  };
+
+  const endDraw = (e) => {
+    if (!drawing.current) return;
+    e.preventDefault();
+    drawing.current = false;
+    if (lastPos.current && lastPos.current.points.length > 0) {
+      strokeBuffer.current.push(lastPos.current);
+      syncStrokes();
+    }
+    lastPos.current = null;
+  };
+
+  const clearCanvas = async () => {
+    if (!canvasRef.current) return;
+    const ctx = canvasRef.current.getContext("2d");
+    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    await update({[`${gameKey}.strokes`]: []});
+  };
+
+  const submitGuess = async () => {
+    if (!guess.trim()) return;
+    const word = game?.words?.[game?.currentRound] || "";
+    const correct = guess.trim().toLowerCase() === word.toLowerCase();
+    const newGuess = {from: userKey, text: guess.trim(), correct, ts: Date.now()};
+    const updatedGuesses = [...(game?.guesses || []), newGuess];
+    await update({[`${gameKey}.guesses`]: updatedGuesses});
+    if (correct) {
+      await addN("pictionary", `${me?.name} guessed the word!`);
+      // Move to next round
+      const nextRound = (game?.currentRound || 0) + 1;
+      if (nextRound >= game?.rounds) {
+        await update({[`${gameKey}.status`]: "done"});
+      } else {
+        await update({
+          [`${gameKey}.currentRound`]: nextRound,
+          [`${gameKey}.currentDrawer`]: game?.currentDrawer === "A" ? "B" : "A",
+          [`${gameKey}.strokes`]: [],
+          [`${gameKey}.guesses`]: [],
+        });
+      }
+    }
+    setGuess("");
+  };
+
+  const startGame = async () => {
+    if (lobbySettings.rounds === 0) return;
+    const words = getPictionaryWords("couples", lobbySettings.rounds * 2);
+    await update({
+      [gameKey]: {
+        rounds: lobbySettings.rounds,
+        drawTime: lobbySettings.drawTime,
+        hints: lobbySettings.hints,
+        currentRound: 0,
+        currentDrawer: Math.random() < 0.5 ? "A" : "B",
+        words,
+        strokes: [],
+        guesses: [],
+        scores: {A: 0, B: 0},
+        status: "playing",
+        startedAt: Date.now(),
+      }
+    });
+    setInLobby(false);
+  };
+
+  const endGame = async () => {
+    await update({[gameKey]: null});
+    setInLobby(true);
+  };
+
+  const COLORS = ["#1A0A05","#D4526A","#D4922A","#6B8F71","#8B6BAD","#4A90D9","#fff"];
+
+  // ── LOBBY ──
+  if (inLobby || !game) {
     return (
       <ScreenWrap gradient={C.gradPlay}>
-        <div style={{ position: "relative", overflow: "hidden" }}>
-          <GradOrb size={280} top={-50} />
-          <div style={{ padding: "32px 18px 0", position: "relative", zIndex: 1, textAlign: "center" }}>
-            <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 60, height: 60, borderRadius: "50%", background: C.gradRose, boxShadow: SHADOWS.lg, marginBottom: 16 }}>
-              <Pen size={30} color="#fff" weight="fill" />
-            </div>
-            <h2 style={{ fontFamily: PF, fontSize: 28, fontStyle: "italic", fontWeight: 400, color: C.text, marginBottom: 8 }}>Pictionary</h2>
-            <p style={{ fontSize: 14, color: C.muted, fontFamily: LT, marginBottom: 32 }}>Draw & guess together in real-time</p>
-
-            <div style={{ background: "rgba(255,255,255,0.95)", borderRadius: 20, padding: 24, textAlign: "left" }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14, fontFamily: LT }}>Rounds</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
-                {[2, 3, 5].map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setRounds(r)}
-                    style={{
-                      padding: "14px 0",
-                      borderRadius: 14,
-                      border: `2px solid ${rounds === r ? C.rose : C.border}`,
-                      background: rounds === r ? C.roseSoft : "transparent",
-                      cursor: "pointer",
-                      fontFamily: LT,
-                      fontSize: 16,
-                      fontWeight: 700,
-                      color: rounds === r ? C.rose : C.text,
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14, fontFamily: LT }}>Draw time</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-                {[60, 90, 120, 180].map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setDrawTime(t)}
-                    style={{
-                      padding: "12px 0",
-                      borderRadius: 12,
-                      border: `2px solid ${drawTime === t ? C.rose : C.border}`,
-                      background: drawTime === t ? C.roseSoft : "transparent",
-                      cursor: "pointer",
-                      fontFamily: LT,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: drawTime === t ? C.rose : C.text,
-                    }}
-                  >
-                    {t}s
-                  </button>
-                ))}
+        <div style={{position:"relative",overflow:"hidden"}}>
+          <GradOrb size={280} top={-50}/>
+          <div style={{padding:"22px 18px 0",position:"relative",zIndex:1}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:28}}>
+              <BackBtn onClick={back}/>
+              <div style={{flex:1}}>
+                <h2 style={{fontFamily:PF,fontSize:22,fontWeight:400,fontStyle:"italic",color:C.text}}>Pictionary</h2>
+                <div style={{fontSize:12,color:C.muted,fontFamily:LT}}>Draw & guess together</div>
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 20 }}>
-              <Btn variant="ghost" onClick={back}>
-                Cancel
-              </Btn>
-              <Btn
-                onClick={async () => {
-                  const words = getPictionaryWords("couples", 1);
-                  const newGame = {
-                    rounds,
-                    drawTime,
-                    currentRound: 0,
-                    currentDrawer: "A",
-                    words: words,
-                    canvas: [],
-                    guesses: [],
-                    scores: { A: 0, B: 0 },
-                    status: "drawing",
-                    startedAt: Date.now(),
-                  };
-                  await update({ [gameKey]: newGame });
-                  setLobbyMode(false);
-                  setGameState("drawing");
-                }}
-                disabled={rounds === 0}
-                style={{ background: C.gradRose, border: "none", color: "#fff" }}
-              >
-                Start game
-              </Btn>
+            <div style={{textAlign:"center",marginBottom:28}}>
+              <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:72,height:72,borderRadius:"50%",background:C.gradRose,boxShadow:SHADOWS.xl,marginBottom:16}} className="hb-float">
+                <Pen size={36} color="#fff" weight="fill"/>
+              </div>
+              <p style={{fontSize:14,color:C.muted,fontFamily:LT}}>Set up your game, then both tap Ready.</p>
             </div>
+
+            <Card elevated style={{marginBottom:16}}>
+              {/* Rounds */}
+              <div style={{marginBottom:20}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>Rounds</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+                  {[2,3,5].map(r=>(
+                    <button key={r} onClick={()=>setLobbySettings(s=>({...s,rounds:r}))} style={{padding:"14px 0",borderRadius:14,border:`2px solid ${lobbySettings.rounds===r?C.rose:C.border}`,background:lobbySettings.rounds===r?C.roseSoft:"transparent",cursor:"pointer",fontFamily:LT,fontSize:16,fontWeight:700,color:lobbySettings.rounds===r?C.rose:C.text,transition:"all 0.2s"}}>{r}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Draw time */}
+              <div style={{marginBottom:20}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>Draw time</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+                  {[30,60,90,120].map(t=>(
+                    <button key={t} onClick={()=>setLobbySettings(s=>({...s,drawTime:t}))} style={{padding:"12px 0",borderRadius:12,border:`2px solid ${lobbySettings.drawTime===t?C.rose:C.border}`,background:lobbySettings.drawTime===t?C.roseSoft:"transparent",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:lobbySettings.drawTime===t?C.rose:C.text}}>{t}s</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Hints */}
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>Hints (letters revealed)</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+                  {[0,1,2].map(h=>(
+                    <button key={h} onClick={()=>setLobbySettings(s=>({...s,hints:h}))} style={{padding:"12px 0",borderRadius:12,border:`2px solid ${lobbySettings.hints===h?C.rose:C.border}`,background:lobbySettings.hints===h?C.roseSoft:"transparent",cursor:"pointer",fontFamily:LT,fontSize:14,fontWeight:700,color:lobbySettings.hints===h?C.rose:C.text}}>{h===0?"None":h}</button>
+                  ))}
+                </div>
+              </div>
+            </Card>
+
+            <Btn
+              disabled={lobbySettings.rounds===0}
+              onClick={startGame}
+              style={{background:C.gradRose,border:"none",color:"#fff"}}
+            >
+              Start game →
+            </Btn>
           </div>
         </div>
       </ScreenWrap>
     );
   }
 
-  if (!game) return null;
+  // ── GAME OVER ──
+  if (game.status === "done") {
+    const myScore = game.scores?.[userKey] || 0;
+    const partnerScore = game.scores?.[pk] || 0;
+    return (
+      <ScreenWrap gradient={C.gradPlay}>
+        <div style={{padding:"22px 18px",position:"relative",zIndex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:28}}>
+            <BackBtn onClick={back}/>
+          </div>
+          <div style={{textAlign:"center",paddingTop:40}}>
+            <div style={{fontSize:64,marginBottom:16}}>🎨</div>
+            <h3 style={{fontFamily:PF,fontSize:28,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:24}}>Game over!</h3>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:32}}>
+              {[[userKey,me?.name,myScore,C.rose],[pk,partner?.name,partnerScore,C.gold]].map(([k,name,score,color])=>(
+                <Card key={k} elevated style={{textAlign:"center"}}>
+                  <div style={{fontSize:11,fontWeight:700,color:C.muted,fontFamily:LT,marginBottom:8}}>{name}</div>
+                  <div style={{fontSize:40,fontWeight:700,color,fontFamily:PF}}>{score}</div>
+                </Card>
+              ))}
+            </div>
+            <Btn onClick={endGame} style={{background:C.gradRose,border:"none",color:"#fff"}}>Play again</Btn>
+            <Btn variant="ghost" style={{marginTop:10}} onClick={back}>Back to Play</Btn>
+          </div>
+        </div>
+      </ScreenWrap>
+    );
+  }
+
+  // ── ACTIVE GAME ──
+  const word = game.words?.[game.currentRound] || "";
+  const isDrawer = game.currentDrawer === userKey;
+  const recentGuesses = (game.guesses || []).slice(-5);
+
+  // Build hint string
+  const hintWord = word.split("").map((ch, i) => {
+    if (ch === " ") return " ";
+    if (i < lobbySettings.hints || (game.hints || 0) > i) return ch;
+    return "_";
+  }).join(" ");
 
   return (
     <ScreenWrap gradient={C.gradPlay}>
-      <div style={{ position: "relative", overflow: "hidden", paddingBottom: 80 }}>
-        <GradOrb size={280} top={-50} />
-        <div style={{ padding: "22px 18px 0", position: "relative", zIndex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-            <BackBtn onClick={() => { setLobbyMode(true); }} />
-            <div style={{ flex: 1 }}>
-              <h2 style={{ fontFamily: PF, fontSize: 20, fontWeight: 400, fontStyle: "italic", color: C.text }}>Round {game.currentRound + 1}/{game.rounds}</h2>
-              <div style={{ fontSize: 12, color: C.muted, fontFamily: LT }}>
-                {game.currentDrawer === userKey ? "You're drawing" : `${partner?.name} is drawing`}
+      <div style={{position:"relative",zIndex:1}}>
+        {/* Header */}
+        <div style={{padding:"22px 18px 12px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+            <BackBtn onClick={()=>setInLobby(true)}/>
+            <div style={{flex:1}}>
+              <h2 style={{fontFamily:PF,fontSize:20,fontWeight:400,fontStyle:"italic",color:C.text}}>
+                Round {(game.currentRound||0)+1}/{game.rounds}
+              </h2>
+              <div style={{fontSize:12,color:C.muted,fontFamily:LT}}>
+                {isDrawer?"You're drawing":"Guess the word!"}
               </div>
             </div>
+            {/* Scores */}
+            <div style={{display:"flex",gap:8}}>
+              {[["A",me?.name,C.rose],["B",partner?.name,C.gold]].map(([k,name,col])=>(
+                <div key={k} style={{textAlign:"center",background:k===userKey?col+"20":"rgba(0,0,0,0.05)",borderRadius:10,padding:"4px 10px"}}>
+                  <div style={{fontSize:16,fontWeight:700,color:col,fontFamily:PF}}>{game.scores?.[k]||0}</div>
+                  <div style={{fontSize:9,color:C.muted,fontFamily:LT}}>{name}</div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Scores */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
-            {[["A", me?.name], ["B", partner?.name]].map(([k, n]) => (
-              <div key={k} style={{ background: "rgba(255,255,255,0.9)", borderRadius: 14, padding: "12px 16px", textAlign: "center" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, fontFamily: LT }}>{n}</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: C.rose, fontFamily: PF }}>{game.scores?.[k] || 0}</div>
+          {/* Word display */}
+          <div style={{background:"rgba(255,255,255,0.9)",borderRadius:16,padding:"12px 18px",marginBottom:12,textAlign:"center"}}>
+            {isDrawer
+              ? <div style={{fontSize:22,fontWeight:700,color:C.rose,fontFamily:PF,letterSpacing:"0.05em"}}>{word}</div>
+              : <div style={{fontSize:18,fontWeight:700,color:C.text,fontFamily:PF,letterSpacing:"0.2em"}}>{hintWord}</div>
+            }
+            <div style={{fontSize:11,color:C.muted,fontFamily:LT,marginTop:4}}>
+              {isDrawer?"Draw this word":"Guess the word"}
+            </div>
+          </div>
+        </div>
+
+        {/* Canvas */}
+        <div style={{padding:"0 18px",marginBottom:12}}>
+          <div style={{position:"relative",borderRadius:16,overflow:"hidden",boxShadow:SHADOWS.lg,background:"#FFF6F3",border:`2px solid ${C.border}`}}>
+            <canvas
+              ref={canvasRef}
+              width={600}
+              height={400}
+              style={{width:"100%",height:"auto",display:"block",touchAction:"none",cursor:isDrawer?(isEraser?"crosshair":"crosshair"):"default"}}
+              onMouseDown={startDraw}
+              onMouseMove={draw}
+              onMouseUp={endDraw}
+              onMouseLeave={endDraw}
+              onTouchStart={startDraw}
+              onTouchMove={draw}
+              onTouchEnd={endDraw}
+            />
+            {!isDrawer&&(
+              <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+                {(game.strokes||[]).length===0&&<div style={{fontSize:13,color:C.muted,fontFamily:LT}}>Waiting for {partner?.name} to draw...</div>}
               </div>
-            ))}
+            )}
           </div>
+        </div>
 
-          <Card elevated style={{ marginBottom: 20, textAlign: "center" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.muted, fontFamily: LT, marginBottom: 8 }}>Word to draw</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: C.rose, fontFamily: PF, letterSpacing: "0.1em" }}>
-              {game.currentDrawer === userKey ? game.words[0] : "????"}
-            </div>
-          </Card>
-
-          {/* Canvas placeholder */}
-          <div style={{ background: "rgba(255,255,255,0.95)", borderRadius: 16, aspectRatio: "1", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted }}>
-            <div style={{ textAlign: "center" }}>
-              <Pen size={32} color={C.muted} style={{ marginBottom: 8 }} />
-              <div style={{ fontSize: 12, fontFamily: LT }}>Canvas area (placeholder)</div>
+        {/* Drawing tools — only for drawer */}
+        {isDrawer&&(
+          <div style={{padding:"0 18px",marginBottom:12}}>
+            <div style={{background:"rgba(255,255,255,0.95)",borderRadius:16,padding:"12px 14px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",boxShadow:SHADOWS.sm}}>
+              {/* Colors */}
+              <div style={{display:"flex",gap:6}}>
+                {COLORS.map(c=>(
+                  <button key={c} onClick={()=>{setColor(c);setIsEraser(false);}} style={{width:26,height:26,borderRadius:"50%",background:c,border:`3px solid ${color===c&&!isEraser?"#1A0A05":"rgba(0,0,0,0.1)"}`,cursor:"pointer",flexShrink:0,boxShadow:c==="#fff"?`inset 0 0 0 1px ${C.border}`:""}}/>
+                ))}
+              </div>
+              {/* Eraser */}
+              <button onClick={()=>setIsEraser(e=>!e)} style={{padding:"5px 10px",borderRadius:10,border:`2px solid ${isEraser?C.rose:C.border}`,background:isEraser?C.roseSoft:"transparent",cursor:"pointer",fontFamily:LT,fontSize:12,fontWeight:700,color:isEraser?C.rose:C.muted}}>Eraser</button>
+              {/* Brush size */}
+              <div style={{display:"flex",gap:5,alignItems:"center"}}>
+                {[2,4,8].map(s=>(
+                  <button key={s} onClick={()=>setBrushSize(s)} style={{width:s+16,height:s+16,borderRadius:"50%",background:brushSize===s?"#1A0A05":"rgba(0,0,0,0.15)",border:`2px solid ${brushSize===s?"#1A0A05":"transparent"}`,cursor:"pointer"}}/>
+                ))}
+              </div>
+              {/* Clear */}
+              <button onClick={clearCanvas} style={{marginLeft:"auto",padding:"5px 10px",borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",fontFamily:LT,fontSize:12,color:C.muted}}>Clear</button>
             </div>
           </div>
+        )}
 
-          {game.currentDrawer === userKey ? (
-            <Btn style={{ background: C.gradRose, border: "none", color: "#fff" }}>Done drawing</Btn>
-          ) : (
-            <div>
-              <input type="text" placeholder="Your guess..." style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: `1px solid ${C.border}`, marginBottom: 12, fontFamily: LT }} />
-              <Btn style={{ background: C.gradRose, border: "none", color: "#fff" }}>Submit guess</Btn>
+        {/* Guesses + input */}
+        <div style={{padding:"0 18px 80px"}}>
+          {/* Recent guesses */}
+          {recentGuesses.length>0&&(
+            <div style={{marginBottom:10}}>
+              {recentGuesses.map((g,i)=>(
+                <div key={i} style={{fontSize:13,fontFamily:LT,color:g.correct?C.sage:g.from===userKey?C.rose:C.muted,marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontWeight:700}}>{g.from===userKey?me?.name:partner?.name}:</span>
+                  <span>{g.text}</span>
+                  {g.correct&&<span style={{color:C.sage}}>✓ Correct!</span>}
+                </div>
+              ))}
             </div>
           )}
+
+          {/* Guess input — only for guesser */}
+          {!isDrawer&&game.status==="playing"&&(
+            <div style={{display:"flex",gap:10}}>
+              <input
+                type="text"
+                value={guess}
+                onChange={e=>setGuess(e.target.value)}
+                onKeyPress={e=>e.key==="Enter"&&submitGuess()}
+                placeholder="Type your guess..."
+                style={{flex:1,padding:"12px 16px",borderRadius:14,border:`2px solid ${C.border}`,fontFamily:LT,fontSize:14,outline:"none"}}
+              />
+              <button onClick={submitGuess} style={{padding:"12px 18px",borderRadius:14,background:C.gradRose,border:"none",color:"#fff",fontFamily:LT,fontSize:14,fontWeight:700,cursor:"pointer"}}>Guess</button>
+            </div>
+          )}
+
+          {isDrawer&&<div style={{textAlign:"center",fontSize:13,color:C.muted,fontFamily:LT,marginTop:8}}>Draw "{word}" for {partner?.name} to guess</div>}
         </div>
       </div>
     </ScreenWrap>
