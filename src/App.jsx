@@ -4,7 +4,13 @@ import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from "fireba
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as fbSignOut, GoogleAuthProvider, signInWithPopup, deleteUser } from "firebase/auth";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { Heart, GameController, Leaf, UserCircle, Bell, ArrowLeft, Fire, Camera, PencilSimple, CheckCircle, Plus, X, CaretRight, Heartbeat, Envelope, Jar, ListChecks, HandsPraying, Scales, MaskHappy, HandPointing, ChartBar, ChatTeardrop, FlowerLotus, Sparkle, HouseSimple, Gear, SignOut, CalendarBlank, MapPin, Clock, Star, CalendarHeart, Shuffle, ArrowRight } from "@phosphor-icons/react";
-
+import {
+  getDailyQuestion, getDailyWYR, getNHIESet,
+  getTruthQuestion, getDare, getCompatSet,
+  getDesirePrompt, getWatchSuggestions,
+  getDateTemplate, BUCKET_SUGGESTIONS,
+  getWeeklyCheckIn,
+} from "./data/content.js";
 // ── FIREBASE ───────────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey:     import.meta.env.VITE_FIREBASE_API_KEY,
@@ -774,7 +780,7 @@ function PlayTab({me,partner,userKey,roomData,update,addN,go}){
     {Icon:HandPointing,title:"Never Have I Ever",desc:"Who's actually done what?",key:"nhie",cat:"discovery",grad:"linear-gradient(135deg,#90C498,#6B8F71)",accent:"#fff",status:getStatus("nhie")},
     {Icon:MaskHappy,title:"Truth or Dare",desc:"Pick your fate — brave or daring?",key:"tord",cat:"discovery",grad:"linear-gradient(135deg,#B0A0E0,#8B6BAD)",accent:"#fff"},
     {Icon:ChartBar,title:"Compatibility",desc:"See how alike you really are",key:"compat",cat:"discovery",grad:"linear-gradient(135deg,#F0C060,#D4922A)",accent:"#fff",status:getStatus("compat")},
-    {Icon:FlowerLotus,title:"Love Language",desc:"Know how each other feels loved",key:"lovelang",cat:"discovery",grad:"linear-gradient(135deg,#F0A0C0,#D4526A)",accent:"#fff"},
+    {Icon:Heart,title:"Weekly Check-In",desc:"How are we doing this week?",key:"checkin",cat:"daily",grad:"linear-gradient(135deg,#F0C060,#D4922A)",accent:"#fff"},
     {Icon:Fire,title:"Desire",desc:"Bold. Daring. Just the two of you.",key:"desire",cat:"spicy",grad:"linear-gradient(135deg,#2A0F08,#8B2A1A)",accent:"#E8A080",dark:true},
   ];
 
@@ -1600,7 +1606,8 @@ function ShoppingRow({piece,timezone}){
     </div>
   );
 }
-function OutfitPlannerScreen({me,partner,myUser,userKey,roomData,update,addN,back}){
+function OutfitPlannerScreen({me,partner,userKey,roomData,update,addN,back}){
+  const myUser = roomData?.users?.[userKey];
   const pk=userKey==="A"?"B":"A";
   const [mode,setMode]=useState(""); // forme|forpartner|react
   const [occasion,setOccasion]=useState("");
@@ -1692,7 +1699,7 @@ Return ONLY this JSON:
                 <div style={{marginBottom:24}}>
                   <div style={{fontSize:11,fontWeight:700,color:outfitColor,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>From {partner?.name} ✨</div>
                   {pendingForMe.map(card=>(
-                   <OutfitCard key={card.id} card={card} me={me} partner={partner} myUser={myUser} userKey={userKey} outfitColor={outfitColor} outfitBd={outfitBd} gradOutfit={gradOutfit} onRequestChange={requestChange} loading={loading}/>
+                    <OutfitCard key={card.id} card={card} me={me} partner={partner} userKey={userKey} outfitColor={outfitColor} outfitBd={outfitBd} gradOutfit={gradOutfit} onRequestChange={requestChange} loading={loading}/>
                   ))}
                 </div>
               )}
@@ -1777,7 +1784,7 @@ Return ONLY this JSON:
 }
 
 // ── OUTFIT CARD ────────────────────────────────────────────────────
-function OutfitCard({card,me,partner,myUser,userKey,outfitColor,outfitBd,gradOutfit,onRequestChange,loading}){
+function OutfitCard({card,me,partner,userKey,outfitColor,outfitBd,gradOutfit,onRequestChange,loading}){
   const [expanded,setExpanded]=useState(true);
   const [changeNote,setChangeNote]=useState("");
   const [requesting,setRequesting]=useState(false);
@@ -1798,7 +1805,7 @@ function OutfitCard({card,me,partner,myUser,userKey,outfitColor,outfitBd,gradOut
       </div>
       <div style={{padding:"14px 18px"}}>
       {card.result.keyPieces?.map((p,i)=>(
-  <ShoppingRow key={i} piece={p} timezone={myUser?.timezone||""}/>
+  <ShoppingRow key={i} piece={p} timezone={"Asia/Kolkata"}/>
 ))}
         <div style={{fontSize:13,color:C.muted,fontFamily:LT,lineHeight:1.6,marginTop:10}}>{card.result.styling}</div>
         {card.note&&<div style={{fontSize:12,color:outfitColor,fontFamily:PF,fontStyle:"italic",marginTop:10}}>"{card.note}"</div>}
@@ -1834,27 +1841,15 @@ function WatchPartyScreen({me,partner,userKey,roomData,update,addN,back}){
     if(watchData?.step) setStep(watchData.step);
   },[watchData]);
 
-  const getSuggestions=async()=>{
+    const getSuggestions=async()=>{
     setLoading(true);
-    try{
-      const history=(roomData?.watchHistory||[]).slice(0,5).map(w=>w.title).join(", ");
-      const system="You are a film curator for couples. Suggest films based on mood. Return only JSON.";
-      const prompt=`Suggest 3 ${mood} films or shows for a couple to watch together.${history?` They've already watched: ${history}. Don't repeat these.`:""}
-Return ONLY this JSON:
-{
-  "suggestions": [
-    {"title": "Film Title", "year": 2020, "genre": "genre", "pitch": "one romantic sentence about why to watch this together", "runtime": "2h 10m"},
-    {"title": "Film Title 2", "year": 2019, "genre": "genre", "pitch": "pitch", "runtime": "1h 45m"},
-    {"title": "Film Title 3", "year": 2021, "genre": "genre", "pitch": "pitch", "runtime": "2h"}
-  ]
-}`;
-      const raw=await callClaude(system,prompt);
-      const m=raw.match(/\{[\s\S]*\}/);
-      const parsed=JSON.parse(m?m[0]:raw);
-      await update({[`${watchKey}.suggestions`]:parsed.suggestions,[`${watchKey}.mood`]:mood,[`${watchKey}.step`]:"suggestions"});
-      setSuggestions(parsed.suggestions);
-      setStep("suggestions");
-    }catch(e){console.error(e);}
+    const films=getWatchSuggestions(mood);
+    const history=(roomData?.watchHistory||[]).map(w=>w.title);
+    const fresh=films.filter(f=>!history.includes(f.title));
+    const pool=fresh.length>=3?fresh:films;
+    await update({[`${watchKey}.suggestions`]:pool,[`${watchKey}.mood`]:mood,[`${watchKey}.step`]:"suggestions"});
+    setSuggestions(pool);
+    setStep("suggestions");
     setLoading(false);
   };
 
@@ -2084,6 +2079,131 @@ function DateTab({me,partner,userKey,roomData,update,addN,go}){
     </div>
   );
 }
+function RelationshipCheckIn({me,partner,userKey,roomData,update,addN,back}){
+  const pk=userKey==="A"?"B":"A";
+  const weekKey=`checkin_${Math.floor(Date.now()/(7*86400000))}`;
+  const checkin=roomData?.[weekKey];
+  const set=getWeeklyCheckIn();
+  const myRatings=checkin?.ratings?.[userKey]||{};
+  const theirRatings=checkin?.ratings?.[pk]||{};
+  const myDone=set.questions.every(q=>myRatings[q.id]!==undefined);
+  const theirDone=set.questions.every(q=>theirRatings[q.id]!==undefined);
+  const both=myDone&&theirDone;
+  const [reflection,setReflection]=useState(checkin?.reflections?.[userKey]||"");
+  const [submitted,setSubmitted]=useState(!!checkin?.reflections?.[userKey]);
+
+  const rate=async(qid,val)=>{
+    if(myRatings[qid]!==undefined) return;
+    await update({[`${weekKey}.ratings.${userKey}.${qid}`]:val});
+  };
+
+  const submitReflection=async()=>{
+    if(!reflection.trim()) return;
+    await update({[`${weekKey}.reflections.${userKey}`]:reflection.trim()});
+    await addN("checkin",`${me?.name} completed this week's check-in`);
+    setSubmitted(true);
+  };
+
+  const avgScore=(ratings)=>{
+    const vals=set.questions.map(q=>ratings[q.id]).filter(Boolean);
+    if(!vals.length) return null;
+    return Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*20);
+  };
+
+  const myScore=myDone?avgScore(myRatings):null;
+  const theirScore=theirDone?avgScore(theirRatings):null;
+
+  return (
+    <ScreenWrap gradient="linear-gradient(180deg,#FFE8D8 0%,#FFF5EE 50%,#FFF6F3 100%)">
+      <div style={{position:"relative",overflow:"hidden"}}>
+        <GradOrb size={280} top={-50} color1="rgba(212,146,42,0.20)" color2="rgba(240,200,120,0.08)"/>
+        <div style={{padding:"22px 18px 48px",position:"relative",zIndex:1}}>
+          <Hdr title="Weekly Check-In" sub="How are we doing this week?" back={back} right={<div style={{width:40,height:40,borderRadius:14,background:C.gradGold,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.md}}><Heart size={20} color="#fff" weight="fill"/></div>}/>
+
+          {/* Scores if both done */}
+          {both&&<Card elevated gradient="linear-gradient(135deg,rgba(212,146,42,0.10),rgba(255,220,140,0.08))" style={{marginBottom:20,textAlign:"center",border:`1px solid ${C.goldBd}`}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.gold,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:16,fontFamily:LT}}>This week's pulse</div>
+            <div style={{display:"flex",justifyContent:"center",gap:32}}>
+              {[[me?.name,myScore,C.rose,C.roseSoft],[partner?.name,theirScore,C.gold,C.goldSoft]].map(([name,score,color,soft])=>(
+                <div key={name} style={{textAlign:"center"}}>
+                  <div style={{fontSize:40,fontWeight:700,color,fontFamily:PF,lineHeight:1}}>{score}%</div>
+                  <div style={{fontSize:11,color:C.muted,fontFamily:LT,marginTop:4}}>{name}</div>
+                </div>
+              ))}
+            </div>
+            {myScore&&theirScore&&<div style={{fontSize:13,color:C.muted,fontFamily:LT,marginTop:14,lineHeight:1.6}}>
+              {Math.abs(myScore-theirScore)<=10?"You're in a similar place this week ♥":"You're feeling this week a bit differently — worth talking about"}
+            </div>}
+          </Card>}
+
+          {/* Questions */}
+          <div style={{marginBottom:20}}>
+            {set.questions.map((q,i)=>{
+              const myVal=myRatings[q.id];
+              const theirVal=theirRatings[q.id];
+              const answered=myVal!==undefined;
+              return (
+                <Card key={q.id} elevated style={{marginBottom:12}} className={`s${Math.min(i+1,6)}`}>
+                  <div style={{fontSize:14,fontWeight:700,color:C.text,fontFamily:LT,marginBottom:8,lineHeight:1.5}}>{q.q}</div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.muted,marginBottom:8,fontFamily:LT}}>
+                    <span>{q.low}</span><span>{q.high}</span>
+                  </div>
+                  <div style={{display:"flex",gap:6,marginBottom:both?10:0}}>
+                    {[1,2,3,4,5].map(v=>(
+                      <button key={v} onClick={()=>!answered&&rate(q.id,v)} style={{
+                        flex:1,padding:"10px 0",borderRadius:12,border:"none",
+                        background:myVal===v?C.gradRose:"rgba(255,255,255,0.85)",
+                        cursor:answered?"default":"pointer",
+                        fontFamily:LT,fontSize:13,fontWeight:myVal===v?700:400,
+                        color:myVal===v?"#fff":C.text,
+                        transition:"all 0.15s",
+                        boxShadow:myVal===v?SHADOWS.md:SHADOWS.sm,
+                      }}>{v}</button>
+                    ))}
+                  </div>
+                  {both&&myVal&&theirVal&&(
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
+                      <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:20,background:C.roseSoft,color:C.rose,border:`1px solid ${C.roseBd}`,fontFamily:LT}}>{me?.name}: {myVal}</span>
+                      <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:20,background:C.goldSoft,color:C.gold,border:`1px solid ${C.goldBd}`,fontFamily:LT}}>{partner?.name}: {theirVal}</span>
+                      {Math.abs(myVal-theirVal)>=2&&<span style={{fontSize:11,padding:"3px 10px",borderRadius:20,background:"rgba(212,82,106,0.08)",color:C.rose,border:`1px solid ${C.roseBd}`,fontFamily:LT}}>Worth a chat</span>}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Reflection question */}
+          {myDone&&(
+            <Card elevated style={{marginBottom:20}}>
+              <div style={{fontSize:13,fontWeight:700,color:C.muted,fontFamily:LT,marginBottom:12,lineHeight:1.55,fontStyle:"italic"}}>"{set.reflection}"</div>
+              {!submitted?(
+                <div>
+                  <Field textarea value={reflection} onChange={e=>setReflection(e.target.value)} placeholder="Be honest — this is just for us..."/>
+                  <Btn variant="gold" disabled={!reflection.trim()} onClick={submitReflection}>Submit my reflection</Btn>
+                </div>
+              ):(
+                <div>
+                  <div style={{fontSize:14,color:C.text,fontFamily:LT,lineHeight:1.65,marginBottom:both&&checkin?.reflections?.[pk]?14:0}}>{reflection}</div>
+                  {both&&checkin?.reflections?.[pk]&&(
+                    <div style={{borderTop:`1px solid ${C.border}`,paddingTop:14,marginTop:14}}>
+                      <div style={{fontSize:11,fontWeight:700,color:C.gold,fontFamily:LT,marginBottom:8}}>{partner?.name} said:</div>
+                      <div style={{fontSize:14,color:C.text,fontFamily:LT,lineHeight:1.65}}>{checkin.reflections[pk]}</div>
+                    </div>
+                  )}
+                  {!theirDone&&<div style={{fontSize:12,color:C.muted,fontFamily:LT,marginTop:10,display:"flex",alignItems:"center",gap:5}}><Sparkle size={12} color={C.muted}/>Waiting for {partner?.name} to complete theirs...</div>}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {!myDone&&<p style={{textAlign:"center",fontSize:13,color:C.muted,fontFamily:LT}}>Rate all five to unlock the reflection question.</p>}
+
+        </div>
+      </div>
+    </ScreenWrap>
+  );
+}
 // ── GLASSMORPHISM TAB BAR ──────────────────────────────────────────────────
 function TabBar({tab,setTab,unread,notesBadge}){
   const tabs=[
@@ -2110,16 +2230,34 @@ function TabBar({tab,setTab,unread,notesBadge}){
 
 // ── GAME SCREENS ───────────────────────────────────────────────────────────
 function QAScreen({me,partner,userKey,roomData,update,addN,back}){
-  const pk=userKey==="A"?"B":"A"; const fk=`qa_${todayKey()}`; const qa=roomData?.[fk];
-  const [ans,setAns]=useState(qa?.answers?.[userKey]||""); const [guess,setGuess]=useState(qa?.guesses?.[userKey]||""); const [loading,setLoading]=useState(false);
+  const pk=userKey==="A"?"B":"A";
+  const fk=`qa_${todayKey()}`;
+  const qa=roomData?.[fk];
+  const [ans,setAns]=useState(qa?.answers?.[userKey]||"");
+  const [guess,setGuess]=useState(qa?.guesses?.[userKey]||"");
+
   const phase=!qa?.question?"gen":!qa?.answers?.[userKey]?"answer":!qa?.guesses?.[userKey]?"guess":"result";
-  const generate=async()=>{ setLoading(true); try{ const q=await callClaude("Generate one thoughtful fun daily question for a long-distance couple. Return ONLY the question, no quotes.","Fresh question."); await update({[fk]:{question:q,answers:{},guesses:{},date:todayStr()}}); }catch(e){console.error(e);} setLoading(false); };
+
+  const generate=async()=>{
+    const q=getDailyQuestion();
+    await update({[fk]:{question:q,answers:{},guesses:{},date:todayStr()}});
+  };
+
   const QCard=()=><Card elevated gradient="linear-gradient(135deg,rgba(255,228,220,0.99),rgba(255,248,244,0.96))" style={{marginBottom:22}}><div style={{fontSize:11,fontWeight:700,color:C.rose,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10,fontFamily:LT,display:"flex",alignItems:"center",gap:6}}><ChatTeardrop size={14} color={C.rose} weight="fill"/>Today's question</div><p style={{fontFamily:PF,fontSize:20,fontStyle:"italic",lineHeight:1.65,color:C.text,margin:0}}>"{qa.question}"</p></Card>;
+
   return (
     <ScreenWrap gradient={C.gradHome}><div style={{position:"relative",overflow:"hidden"}}><GradOrb size={280} top={-50}/>
     <div style={{padding:"22px 18px 48px",position:"relative",zIndex:1}}>
       <Hdr title="Daily Question" sub={new Date().toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric"})} back={back} right={<div style={{width:40,height:40,borderRadius:14,background:C.gradRose,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.md}}><ChatTeardrop size={20} color="#fff" weight="fill"/></div>}/>
-      {phase==="gen"&&<div className="fade-rise" style={{textAlign:"center",paddingTop:20}}><div style={{marginBottom:24,position:"relative",display:"inline-block"}}><div style={{position:"absolute",inset:-16,borderRadius:"50%",background:"rgba(212,82,106,0.12)",animation:"hbRing1 3s ease-out infinite"}}/><div style={{width:100,height:100,borderRadius:"50%",background:C.gradRose,display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.xl}}><ChatTeardrop size={48} color="#fff" weight="fill"/></div></div><h3 style={{fontFamily:PF,fontSize:24,fontStyle:"italic",fontWeight:400,marginBottom:10,color:C.text}}>Today's question awaits</h3><p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>A fresh question, crafted just for you two.</p>{loading?<Spinner text="Crafting your question..."/>:<Btn onClick={generate}>Generate today's question</Btn>}</div>}
+      {phase==="gen"&&<div className="fade-rise" style={{textAlign:"center",paddingTop:20}}>
+        <div style={{marginBottom:24,position:"relative",display:"inline-block"}}>
+          <div style={{position:"absolute",inset:-16,borderRadius:"50%",background:"rgba(212,82,106,0.12)",animation:"hbRing1 3s ease-out infinite"}}/>
+          <div style={{width:100,height:100,borderRadius:"50%",background:C.gradRose,display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.xl}}><ChatTeardrop size={48} color="#fff" weight="fill"/></div>
+        </div>
+        <h3 style={{fontFamily:PF,fontSize:24,fontStyle:"italic",fontWeight:400,marginBottom:10,color:C.text}}>Today's question awaits</h3>
+        <p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>A fresh question, just for you two.</p>
+        <Btn onClick={generate}>Get today's question</Btn>
+      </div>}
       {phase==="answer"&&<div className="fade-rise"><QCard/><Field textarea label={`Your answer, ${me?.name}`} value={ans} onChange={e=>setAns(e.target.value)} placeholder="Be honest — your partner will try to guess this..."/><Btn disabled={!ans.trim()} onClick={async()=>{if(!ans.trim())return;await update({[`${fk}.answers.${userKey}`]:ans.trim()});await addN("qa",`${me?.name} answered today's question`);}}>Lock in my answer →</Btn></div>}
       {phase==="guess"&&<div className="fade-rise"><QCard/><Card style={{marginBottom:18,background:"rgba(212,82,106,0.06)",border:`1px solid ${C.roseBd}`}}><div style={{fontSize:11,fontWeight:700,color:C.rose,marginBottom:8,fontFamily:LT,display:"flex",alignItems:"center",gap:5}}><CheckCircle size={14} color={C.rose} weight="fill"/>Your answer is locked in</div><div style={{fontSize:15,color:C.text,fontFamily:LT}}>{qa?.answers?.[userKey]}</div></Card>{!qa?.answers?.[pk]&&<Card style={{marginBottom:18,background:"rgba(212,146,42,0.06)",border:`1px solid ${C.goldBd}`}}><div style={{fontSize:13,color:C.gold,fontFamily:LT,display:"flex",alignItems:"center",gap:6}}><Sparkle size={14} color={C.gold}/>{partner?.name} hasn't answered yet — but you can still guess!</div></Card>}<Field textarea label={`What do you think ${partner?.name} said?`} value={guess} onChange={e=>setGuess(e.target.value)} placeholder={`Guess ${partner?.name}'s answer...`}/><Btn disabled={!guess.trim()} onClick={async()=>{if(!guess.trim())return;await update({[`${fk}.guesses.${userKey}`]:guess.trim()});await addN("qa",`${me?.name} guessed your answer`);}}>Submit my guess →</Btn></div>}
       {phase==="result"&&<div className="fade-rise"><Card elevated style={{marginBottom:22}}><p style={{fontFamily:PF,fontSize:18,fontStyle:"italic",lineHeight:1.65,color:C.text,margin:0}}>"{qa.question}"</p></Card>{[[userKey,me?.name,C.rose,"rgba(212,82,106,0.08)",C.roseBd,pk],[pk,partner?.name,C.gold,"rgba(212,146,42,0.08)",C.goldBd,userKey]].map(([key,name,color,soft,bd,gk])=><Card key={key} style={{background:soft,border:`1px solid ${bd}`,marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>{name}'s answers</div><div style={{marginBottom:12}}><div style={{fontSize:11,color:C.muted,marginBottom:4,fontFamily:LT}}>Their answer:</div><div style={{fontSize:15,color:C.text,fontFamily:LT,lineHeight:1.5}}>{qa?.answers?.[key]||<i style={{color:C.muted}}>Not answered yet</i>}</div></div><div><div style={{fontSize:11,color:C.muted,marginBottom:4,fontFamily:LT}}>{key===userKey?`${partner?.name}'s guess:`:`${me?.name}'s guess:`}</div><div style={{fontSize:15,color:C.text,fontFamily:LT,lineHeight:1.5}}>{qa?.guesses?.[gk]||<i style={{color:C.muted}}>Not guessed yet</i>}</div></div></Card>)}<Btn variant="ghost" onClick={back}>← Back</Btn></div>}
@@ -2128,38 +2266,91 @@ function QAScreen({me,partner,userKey,roomData,update,addN,back}){
 }
 
 function WYRScreen({me,partner,userKey,roomData,update,addN,back}){
-  const pk=userKey==="A"?"B":"A"; const fk=`wyr_${todayKey()}`; const wyr=roomData?.[fk]; const [loading,setLoading]=useState(false);
-  const generate=async()=>{ setLoading(true); try{ const raw=await callClaude('Would You Rather for a couple. Return ONLY JSON: {"a":"option A","b":"option B"} — no backticks. Under 12 words each.',"Create."); const m=raw.match(/\{[\s\S]*?\}/); const p=JSON.parse(m?m[0]:raw); await update({[fk]:{a:p.a,b:p.b,choices:{}}}); }catch(e){console.error(e);} setLoading(false); };
-  const choose=async opt=>{ if(wyr?.choices?.[userKey]) return; await update({[`${fk}.choices.${userKey}`]:opt}); await addN("wyr",`${me?.name} made their choice`); };
+  const pk=userKey==="A"?"B":"A";
+  const fk=`wyr_${todayKey()}`;
+  const wyr=roomData?.[fk];
+
+  const generate=async()=>{
+    const pair=getDailyWYR();
+    await update({[fk]:{a:pair.a,b:pair.b,choices:{}}});
+  };
+
+  const choose=async opt=>{
+    if(wyr?.choices?.[userKey]) return;
+    await update({[`${fk}.choices.${userKey}`]:opt});
+    await addN("wyr",`${me?.name} made their choice`);
+  };
+
   const mine=wyr?.choices?.[userKey],theirs=wyr?.choices?.[pk],both=mine&&theirs,agree=both&&mine===theirs;
   const opts=[{key:"a",text:wyr?.a,color:C.rose,soft:"rgba(212,82,106,0.08)",bd:C.roseBd,label:"Option A",grad:C.gradRose},{key:"b",text:wyr?.b,color:C.gold,soft:"rgba(212,146,42,0.08)",bd:C.goldBd,label:"Option B",grad:C.gradGold}];
+
   return (
     <ScreenWrap gradient={C.gradPlay}><div style={{position:"relative",overflow:"hidden"}}><GradOrb size={280} top={-50} color1="rgba(200,100,160,0.22)" color2="rgba(220,150,200,0.08)"/>
     <div style={{padding:"22px 18px 48px",position:"relative",zIndex:1}}>
       <Hdr title="Would You Rather" sub="Make choices, discover each other" back={back} right={<div style={{width:40,height:40,borderRadius:14,background:C.gradGold,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.md}}><Scales size={20} color="#fff" weight="fill"/></div>}/>
-      {!wyr?.a?(<div style={{textAlign:"center",paddingTop:20}} className="fade-rise"><div style={{marginBottom:24,position:"relative",display:"inline-block"}}><div style={{position:"absolute",inset:-16,borderRadius:"50%",background:"rgba(212,146,42,0.12)",animation:"hbRing1 3s ease-out infinite"}}/><div style={{width:100,height:100,borderRadius:"50%",background:C.gradGold,display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.xl}}><Scales size={48} color="#fff" weight="fill"/></div></div><p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>No obvious right answer — just interesting choices.</p>{loading?<Spinner text="Crafting your dilemma..."/>:<Btn variant="gold" onClick={generate}>Generate today's dilemma</Btn>}</div>):(<div className="fade-rise"><p style={{fontFamily:PF,fontSize:20,fontStyle:"italic",color:C.muted,textAlign:"center",marginBottom:24}}>Would you rather...</p>{opts.map(opt=>{ const chosen=mine===opt.key,pp=theirs===opt.key; return <button key={opt.key} onClick={()=>!mine&&choose(opt.key)} className="card-hover" style={{display:"block",width:"100%",background:chosen?opt.soft:"rgba(255,255,255,0.93)",border:`2px solid ${chosen?opt.color:"rgba(255,255,255,0.92)"}`,borderRadius:22,padding:22,textAlign:"left",cursor:mine?"default":"pointer",fontFamily:LT,marginBottom:14,boxShadow:chosen?SHADOWS.lg:SHADOWS.md}}><div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}><div style={{width:32,height:32,borderRadius:10,background:opt.grad,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:SHADOWS.sm,fontSize:10,fontWeight:700,color:"#fff",fontFamily:LT}}>{opt.label.split(" ")[1]}</div><div style={{fontSize:11,fontWeight:700,color:opt.color,textTransform:"uppercase",letterSpacing:"0.09em"}}>{opt.label}</div></div><div style={{fontFamily:PF,fontSize:19,fontStyle:"italic",color:C.text,lineHeight:1.55}}>{opt.text}</div>{both&&<div style={{marginTop:12,display:"flex",gap:8,flexWrap:"wrap"}}>{chosen&&<span style={{fontSize:11,fontWeight:700,color:opt.color,background:opt.soft,padding:"4px 10px",borderRadius:20,border:`1px solid ${opt.bd}`,fontFamily:LT}}>✓ {me?.name}</span>}{pp&&<span style={{fontSize:11,fontWeight:700,color:opt.color,background:opt.soft,padding:"4px 10px",borderRadius:20,border:`1px solid ${opt.bd}`,fontFamily:LT}}>✓ {partner?.name}</span>}</div>}</button>; })}{!mine&&<p style={{textAlign:"center",fontSize:13,color:C.muted,fontFamily:LT}}>Tap to choose — no changing your mind!</p>}{mine&&!theirs&&<Card style={{background:"rgba(212,146,42,0.06)",border:`1px solid ${C.goldBd}`,textAlign:"center"}}><div style={{fontSize:13,color:C.gold,fontFamily:LT,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><Sparkle size={14} color={C.gold}/>Waiting for {partner?.name}...</div></Card>}{both&&<div style={{marginTop:8}}><Card elevated gradient={agree?"linear-gradient(135deg,rgba(107,143,113,0.10),rgba(144,196,152,0.08))":"linear-gradient(135deg,rgba(212,82,106,0.06),rgba(255,200,180,0.08))"} style={{textAlign:"center",marginBottom:14,border:`1px solid ${agree?C.sageBd:C.roseBd}`}}><div style={{fontSize:32,marginBottom:8}}>{agree?"🎉":"✨"}</div><div style={{fontWeight:700,color:agree?C.sage:C.rose,fontSize:14,fontFamily:LT}}>{agree?"You both chose the same!":"You chose differently — great conversation starter!"}</div></Card><Btn variant="outline" onClick={()=>update({[fk]:{a:"",b:"",choices:{}}})}>New dilemma →</Btn></div>}</div>)}
+      {!wyr?.a?(<div style={{textAlign:"center",paddingTop:20}} className="fade-rise">
+        <div style={{marginBottom:24,position:"relative",display:"inline-block"}}>
+          <div style={{position:"absolute",inset:-16,borderRadius:"50%",background:"rgba(212,146,42,0.12)",animation:"hbRing1 3s ease-out infinite"}}/>
+          <div style={{width:100,height:100,borderRadius:"50%",background:C.gradGold,display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.xl}}><Scales size={48} color="#fff" weight="fill"/></div>
+        </div>
+        <p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>No obvious right answer — just interesting choices.</p>
+        <Btn variant="gold" onClick={generate}>Get today's dilemma</Btn>
+      </div>):(<div className="fade-rise">
+        <p style={{fontFamily:PF,fontSize:20,fontStyle:"italic",color:C.muted,textAlign:"center",marginBottom:24}}>Would you rather...</p>
+        {opts.map(opt=>{ const chosen=mine===opt.key,pp=theirs===opt.key; return <button key={opt.key} onClick={()=>!mine&&choose(opt.key)} className="card-hover" style={{display:"block",width:"100%",background:chosen?opt.soft:"rgba(255,255,255,0.93)",border:`2px solid ${chosen?opt.color:"rgba(255,255,255,0.92)"}`,borderRadius:22,padding:22,textAlign:"left",cursor:mine?"default":"pointer",fontFamily:LT,marginBottom:14,boxShadow:chosen?SHADOWS.lg:SHADOWS.md}}><div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}><div style={{width:32,height:32,borderRadius:10,background:opt.grad,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:SHADOWS.sm,fontSize:10,fontWeight:700,color:"#fff",fontFamily:LT}}>{opt.label.split(" ")[1]}</div><div style={{fontSize:11,fontWeight:700,color:opt.color,textTransform:"uppercase",letterSpacing:"0.09em"}}>{opt.label}</div></div><div style={{fontFamily:PF,fontSize:19,fontStyle:"italic",color:C.text,lineHeight:1.55}}>{opt.text}</div>{both&&<div style={{marginTop:12,display:"flex",gap:8,flexWrap:"wrap"}}>{chosen&&<span style={{fontSize:11,fontWeight:700,color:opt.color,background:opt.soft,padding:"4px 10px",borderRadius:20,border:`1px solid ${opt.bd}`,fontFamily:LT}}>✓ {me?.name}</span>}{pp&&<span style={{fontSize:11,fontWeight:700,color:opt.color,background:opt.soft,padding:"4px 10px",borderRadius:20,border:`1px solid ${opt.bd}`,fontFamily:LT}}>✓ {partner?.name}</span>}</div>}</button>; })}
+        {!mine&&<p style={{textAlign:"center",fontSize:13,color:C.muted,fontFamily:LT}}>Tap to choose — no changing your mind!</p>}
+        {mine&&!theirs&&<Card style={{background:"rgba(212,146,42,0.06)",border:`1px solid ${C.goldBd}`,textAlign:"center"}}><div style={{fontSize:13,color:C.gold,fontFamily:LT,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><Sparkle size={14} color={C.gold}/>Waiting for {partner?.name}...</div></Card>}
+        {both&&<div style={{marginTop:8}}><Card elevated gradient={agree?"linear-gradient(135deg,rgba(107,143,113,0.10),rgba(144,196,152,0.08))":"linear-gradient(135deg,rgba(212,82,106,0.06),rgba(255,200,180,0.08))"} style={{textAlign:"center",marginBottom:14,border:`1px solid ${agree?C.sageBd:C.roseBd}`}}><div style={{fontSize:32,marginBottom:8}}>{agree?"🎉":"✨"}</div><div style={{fontWeight:700,color:agree?C.sage:C.rose,fontSize:14,fontFamily:LT}}>{agree?"You both chose the same!":"You chose differently — great conversation starter!"}</div></Card><Btn variant="outline" onClick={()=>update({[fk]:{a:"",b:"",choices:{}}})}>New dilemma →</Btn></div>}
+      </div>)}
     </div></div></ScreenWrap>
   );
 }
 
 function NHIE({me,partner,userKey,roomData,update,addN,back}){
-  const pk=userKey==="A"?"B":"A"; const fk=`ninh_${todayKey()}`; const ninh=roomData?.[fk]; const [loading,setLoading]=useState(false);
-  const generate=async()=>{ setLoading(true); try{ const raw=await callClaude('5 "Never Have I Ever" statements for a couple. Return ONLY a JSON array of 5 strings — no backticks.',"Generate."); const m=raw.match(/\[[\s\S]*?\]/); const arr=JSON.parse(m?m[0]:raw); await update({[fk]:{statements:arr.map(t=>({text:t,A:null,B:null}))}}); }catch(e){console.error(e);} setLoading(false); };
-  const vote=async(i,choice)=>{ if(!ninh?.statements||ninh.statements[i][userKey]) return; const stmts=[...ninh.statements]; stmts[i]={...stmts[i],[userKey]:choice}; await update({[`${fk}.statements`]:stmts}); await addN("nhie",`${me?.name} voted on Never Have I Ever`); };
+  const pk=userKey==="A"?"B":"A";
+  const fk=`ninh_${todayKey()}`;
+  const ninh=roomData?.[fk];
+
+  const generate=async()=>{
+    const statements=getNHIESet(false).map(t=>({text:t,A:null,B:null}));
+    await update({[fk]:{statements}});
+  };
+
+  const vote=async(i,choice)=>{
+    if(!ninh?.statements||ninh.statements[i][userKey]) return;
+    const stmts=[...ninh.statements];
+    stmts[i]={...stmts[i],[userKey]:choice};
+    await update({[`${fk}.statements`]:stmts});
+    await addN("nhie",`${me?.name} voted on Never Have I Ever`);
+  };
+
   return (
     <ScreenWrap gradient={C.gradUs}><div style={{position:"relative",overflow:"hidden"}}><GradOrb size={280} top={-50} color1="rgba(107,143,113,0.22)" color2="rgba(144,196,152,0.08)"/>
     <div style={{padding:"22px 18px 48px",position:"relative",zIndex:1}}>
       <Hdr title="Never Have I Ever" sub="Find out who's done what" back={back} right={<div style={{width:40,height:40,borderRadius:14,background:C.gradSage,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.md}}><HandPointing size={20} color="#fff" weight="fill"/></div>}/>
-      {!ninh?.statements?(<div style={{textAlign:"center",paddingTop:20}} className="fade-rise"><div style={{marginBottom:24,display:"inline-flex",alignItems:"center",justifyContent:"center",width:100,height:100,borderRadius:"50%",background:C.gradSage,boxShadow:SHADOWS.xl}}><HandPointing size={48} color="#fff" weight="fill"/></div><p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>5 statements. Have or never?</p>{loading?<Spinner text="Generating statements..."/>:<Btn variant="sage" onClick={generate}>Generate statements</Btn>}</div>):(
-      <div className="fade-rise">{ninh.statements.map((s,i)=><Card key={i} elevated style={{marginBottom:12}} className={`s${Math.min(i+1,6)}`}><div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:8,fontFamily:LT,display:"flex",alignItems:"center",gap:5}}><Star size={12} color={C.muted} weight="fill"/>Statement {i+1}</div><p style={{fontSize:14,color:C.text,marginBottom:14,lineHeight:1.55,fontFamily:LT}}>{s.text}</p>{!s[userKey]?(<div style={{display:"flex",gap:10}}><button onClick={()=>vote(i,"have")} className="card-hover" style={{flex:1,padding:"11px",borderRadius:14,border:"none",background:"linear-gradient(135deg,rgba(107,143,113,0.15),rgba(144,196,152,0.10))",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:C.sage,boxShadow:SHADOWS.sm}}>I have</button><button onClick={()=>vote(i,"never")} className="card-hover" style={{flex:1,padding:"11px",borderRadius:14,border:"none",background:"rgba(212,82,106,0.08)",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:C.rose,boxShadow:SHADOWS.sm}}>Never</button></div>):(<div style={{display:"flex",flexWrap:"wrap",gap:8}}>{[[userKey,me?.name],[pk,partner?.name]].map(([key,name])=>s[key]?<span key={key} style={{fontSize:11,fontWeight:700,padding:"5px 12px",borderRadius:20,background:s[key]==="have"?C.sageSoft:C.roseSoft,color:s[key]==="have"?C.sage:C.rose,border:`1px solid ${s[key]==="have"?C.sageBd:C.roseBd}`,fontFamily:LT}}>{name}: {s[key]==="have"?"Have":"Never"}</span>:<span key={key} style={{fontSize:11,color:C.muted,fontStyle:"italic",fontFamily:LT}}>⏳ {name}...</span>)}</div>)}</Card>)}
-      {ninh.statements.every(s=>s.A&&s.B)&&<Btn variant="outline" style={{marginTop:6}} onClick={()=>update({[fk]:null})}>New round →</Btn>}</div>)}
+      {!ninh?.statements?(<div style={{textAlign:"center",paddingTop:20}} className="fade-rise">
+        <div style={{marginBottom:24,display:"inline-flex",alignItems:"center",justifyContent:"center",width:100,height:100,borderRadius:"50%",background:C.gradSage,boxShadow:SHADOWS.xl}}><HandPointing size={48} color="#fff" weight="fill"/></div>
+        <p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>5 statements. Have or never?</p>
+        <Btn variant="sage" onClick={generate}>Get statements</Btn>
+      </div>):(
+      <div className="fade-rise">
+        {ninh.statements.map((s,i)=><Card key={i} elevated style={{marginBottom:12}} className={`s${Math.min(i+1,6)}`}><div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:8,fontFamily:LT,display:"flex",alignItems:"center",gap:5}}><Star size={12} color={C.muted} weight="fill"/>Statement {i+1}</div><p style={{fontSize:14,color:C.text,marginBottom:14,lineHeight:1.55,fontFamily:LT}}>{s.text}</p>{!s[userKey]?(<div style={{display:"flex",gap:10}}><button onClick={()=>vote(i,"have")} className="card-hover" style={{flex:1,padding:"11px",borderRadius:14,border:"none",background:"linear-gradient(135deg,rgba(107,143,113,0.15),rgba(144,196,152,0.10))",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:C.sage,boxShadow:SHADOWS.sm}}>I have</button><button onClick={()=>vote(i,"never")} className="card-hover" style={{flex:1,padding:"11px",borderRadius:14,border:"none",background:"rgba(212,82,106,0.08)",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:C.rose,boxShadow:SHADOWS.sm}}>Never</button></div>):(<div style={{display:"flex",flexWrap:"wrap",gap:8}}>{[[userKey,me?.name],[pk,partner?.name]].map(([key,name])=>s[key]?<span key={key} style={{fontSize:11,fontWeight:700,padding:"5px 12px",borderRadius:20,background:s[key]==="have"?C.sageSoft:C.roseSoft,color:s[key]==="have"?C.sage:C.rose,border:`1px solid ${s[key]==="have"?C.sageBd:C.roseBd}`,fontFamily:LT}}>{name}: {s[key]==="have"?"Have":"Never"}</span>:<span key={key} style={{fontSize:11,color:C.muted,fontStyle:"italic",fontFamily:LT}}>⏳ {name}...</span>)}</div>)}</Card>)}
+        {ninh.statements.every(s=>s.A&&s.B)&&<Btn variant="outline" style={{marginTop:6}} onClick={()=>update({[fk]:null})}>New round →</Btn>}
+      </div>)}
     </div></div></ScreenWrap>
   );
 }
 
 function TruthOrDare({me,partner,userKey,roomData,update,addN,back}){
-  const tord=roomData?.tord; const [loading,setLoading]=useState(false); const [spicy,setSpicy]=useState(false);
-  const pick=async type=>{ setLoading(true); try{ const content=await callClaude(spicy?"You generate bold, spicy content for consenting couples in a committed long-distance relationship. Content is daring and intimate, never degrading.":"You generate fun content for couples in a long-distance relationship.",spicy?type==="truth"?"Generate one bold spicy 'Truth' question for a couple — intimate and revealing. Return ONLY the question.":"Generate one spicy 'Dare' for long-distance — intimate, doable alone, shareable via photo/text/voice. Return ONLY the dare.":type==="truth"?"One 'Truth' question for a couple — personal, slightly vulnerable. Return ONLY the question.":"One 'Dare' for long-distance — they can do it alone and share via photo/text. Return ONLY the dare."); await update({tord:{type,content,done:false,spicy}}); await addN("tord",`${me?.name} picked a ${type}${spicy?" 🔥":""}`); }catch(e){console.error(e);} setLoading(false); };
+  const tord=roomData?.tord;
+  const [spicy,setSpicy]=useState(false);
+
+  const pick=async type=>{
+    const content=type==="truth"?getTruthQuestion(spicy):getDare(spicy);
+    await update({tord:{type,content,done:false,spicy}});
+    await addN("tord",`${me?.name} picked a ${type}${spicy?" 🔥":""}`);
+  };
+
   return (
     <ScreenWrap gradient={spicy?"linear-gradient(180deg,#2A0F08 0%,#3D1A12 30%,#FFF6F3 100%)":C.gradPlay}><div style={{position:"relative",overflow:"hidden"}}>{!spicy&&<GradOrb size={280} top={-50} color1="rgba(139,107,173,0.22)" color2="rgba(180,150,220,0.08)"/>}
     <div style={{padding:"22px 18px 48px",position:"relative",zIndex:1}}>
@@ -2169,29 +2360,56 @@ function TruthOrDare({me,partner,userKey,roomData,update,addN,back}){
         <button onClick={()=>setSpicy(s=>!s)} style={{background:spicy?"rgba(255,160,80,0.18)":"rgba(255,255,255,0.75)",border:`1px solid ${spicy?"rgba(255,160,80,0.35)":C.border}`,borderRadius:20,padding:"7px 14px",cursor:"pointer",fontFamily:LT,fontSize:12,fontWeight:700,color:spicy?"#E8A080":C.muted,backdropFilter:"blur(8px)",display:"flex",alignItems:"center",gap:6,transition:"all 0.25s"}}><Fire size={14} color={spicy?"#E8A080":C.muted} weight={spicy?"fill":"regular"}/>{spicy?"Spicy on":"Spicy"}</button>
         <div style={{width:40,height:40,borderRadius:14,background:spicy?"linear-gradient(135deg,#2A0F08,#8B2A1A)":"linear-gradient(135deg,#B0A0E0,#8B6BAD)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.md}}><MaskHappy size={20} color="#fff" weight="fill"/></div>
       </div>
-      {!tord?.type?(<div className="fade-rise"><div style={{textAlign:"center",paddingTop:8,marginBottom:28}}><div style={{marginBottom:14,display:"inline-flex",alignItems:"center",justifyContent:"center",width:80,height:80,borderRadius:"50%",background:spicy?"linear-gradient(135deg,#2A0F08,#8B2A1A)":"linear-gradient(135deg,#B0A0E0,#8B6BAD)",boxShadow:SHADOWS.xl}} className="hb-float"><MaskHappy size={40} color="#fff" weight="fill"/></div><p style={{color:spicy?"rgba(250,240,232,0.6)":C.muted,fontSize:15,lineHeight:1.7,fontFamily:LT}}>What will it be?</p></div>{loading?<Spinner text="Rolling the dice..."/>:(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}><button onClick={()=>pick("truth")} className="card-hover" style={{background:spicy?"rgba(250,240,232,0.08)":"rgba(212,82,106,0.06)",border:`2px solid ${spicy?"rgba(250,240,232,0.15)":C.roseBd}`,borderRadius:22,padding:"28px 14px",cursor:"pointer",fontFamily:LT,textAlign:"center",boxShadow:SHADOWS.md}}><div style={{width:48,height:48,borderRadius:16,background:spicy?"rgba(250,240,232,0.15)":C.gradRose,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",boxShadow:SHADOWS.sm}}><ChatTeardrop size={24} color={spicy?"#FAF0E8":"#fff"} weight="fill"/></div><div style={{fontSize:17,fontWeight:700,color:spicy?"#E8C0A0":C.rose,fontFamily:PF,fontStyle:"italic"}}>Truth</div></button><button onClick={()=>pick("dare")} className="card-hover" style={{background:spicy?"rgba(250,240,232,0.08)":"rgba(212,146,42,0.06)",border:`2px solid ${spicy?"rgba(250,240,232,0.15)":C.goldBd}`,borderRadius:22,padding:"28px 14px",cursor:"pointer",fontFamily:LT,textAlign:"center",boxShadow:SHADOWS.md}}><div style={{width:48,height:48,borderRadius:16,background:spicy?"rgba(250,240,232,0.15)":C.gradGold,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",boxShadow:SHADOWS.sm}}><Fire size={24} color={spicy?"#FAF0E8":"#fff"} weight="fill"/></div><div style={{fontSize:17,fontWeight:700,color:spicy?"#E8C0A0":C.gold,fontFamily:PF,fontStyle:"italic"}}>Dare</div></button></div>)}</div>):(
-      <div className="fade-rise"><Card elevated layer gradient={tord.spicy?"linear-gradient(145deg,rgba(42,15,8,0.96),rgba(80,25,15,0.91))":tord.type==="truth"?"linear-gradient(135deg,rgba(212,82,106,0.08),rgba(255,200,180,0.12))":"linear-gradient(135deg,rgba(212,146,42,0.08),rgba(255,220,140,0.12))"} style={{marginBottom:20,textAlign:"center"}}><div style={{fontSize:11,fontWeight:700,color:tord.spicy?"#E8A080":tord.type==="truth"?C.rose:C.gold,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:16,fontFamily:LT,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{tord.type==="truth"?<ChatTeardrop size={14} color={tord.spicy?"#E8A080":C.rose} weight="fill"/>:<Fire size={14} color={tord.spicy?"#E8A080":C.gold} weight="fill"/>}{tord.type==="truth"?"Truth":"Dare"}{tord.spicy?" — Spicy":""}</div><p style={{fontFamily:PF,fontSize:19,fontStyle:"italic",color:tord.spicy?"#FAF0E8":C.text,lineHeight:1.65,margin:0}}>{tord.content}</p></Card>{!tord.done?(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Btn onClick={async()=>await update({tord:{...tord,done:true}})}>Done!</Btn><Btn variant="ghost" onClick={async()=>await update({tord:null})}>Skip →</Btn></div>):(<div><Card gradient="linear-gradient(135deg,rgba(107,143,113,0.10),rgba(144,196,152,0.08))" style={{textAlign:"center",marginBottom:16,border:`1px solid ${C.sageBd}`}}><CheckCircle size={32} color={C.sage} weight="fill" style={{marginBottom:8}}/><div style={{fontWeight:700,color:C.sage,fontFamily:LT}}>Challenge completed!</div></Card><Btn variant="outline" onClick={async()=>await update({tord:null})}>Pick another →</Btn></div>)}
+      {!tord?.type?(<div className="fade-rise"><div style={{textAlign:"center",paddingTop:8,marginBottom:28}}><div style={{marginBottom:14,display:"inline-flex",alignItems:"center",justifyContent:"center",width:80,height:80,borderRadius:"50%",background:spicy?"linear-gradient(135deg,#2A0F08,#8B2A1A)":"linear-gradient(135deg,#B0A0E0,#8B6BAD)",boxShadow:SHADOWS.xl}} className="hb-float"><MaskHappy size={40} color="#fff" weight="fill"/></div><p style={{color:spicy?"rgba(250,240,232,0.6)":C.muted,fontSize:15,lineHeight:1.7,fontFamily:LT}}>What will it be?</p></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        <button onClick={()=>pick("truth")} className="card-hover" style={{background:spicy?"rgba(250,240,232,0.08)":"rgba(212,82,106,0.06)",border:`2px solid ${spicy?"rgba(250,240,232,0.15)":C.roseBd}`,borderRadius:22,padding:"28px 14px",cursor:"pointer",fontFamily:LT,textAlign:"center",boxShadow:SHADOWS.md}}><div style={{width:48,height:48,borderRadius:16,background:spicy?"rgba(250,240,232,0.15)":C.gradRose,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",boxShadow:SHADOWS.sm}}><ChatTeardrop size={24} color={spicy?"#FAF0E8":"#fff"} weight="fill"/></div><div style={{fontSize:17,fontWeight:700,color:spicy?"#E8C0A0":C.rose,fontFamily:PF,fontStyle:"italic"}}>Truth</div></button>
+        <button onClick={()=>pick("dare")} className="card-hover" style={{background:spicy?"rgba(250,240,232,0.08)":"rgba(212,146,42,0.06)",border:`2px solid ${spicy?"rgba(250,240,232,0.15)":C.goldBd}`,borderRadius:22,padding:"28px 14px",cursor:"pointer",fontFamily:LT,textAlign:"center",boxShadow:SHADOWS.md}}><div style={{width:48,height:48,borderRadius:16,background:spicy?"rgba(250,240,232,0.15)":C.gradGold,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",boxShadow:SHADOWS.sm}}><Fire size={24} color={spicy?"#FAF0E8":"#fff"} weight="fill"/></div><div style={{fontSize:17,fontWeight:700,color:spicy?"#E8C0A0":C.gold,fontFamily:PF,fontStyle:"italic"}}>Dare</div></button>
+      </div></div>):(
+      <div className="fade-rise"><Card elevated layer gradient={tord.spicy?"linear-gradient(145deg,rgba(42,15,8,0.96),rgba(80,25,15,0.91))":tord.type==="truth"?"linear-gradient(135deg,rgba(212,82,106,0.08),rgba(255,200,180,0.12))":"linear-gradient(135deg,rgba(212,146,42,0.08),rgba(255,220,140,0.12))"} style={{marginBottom:20,textAlign:"center"}}><div style={{fontSize:11,fontWeight:700,color:tord.spicy?"#E8A080":tord.type==="truth"?C.rose:C.gold,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:16,fontFamily:LT,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{tord.type==="truth"?<ChatTeardrop size={14} color={tord.spicy?"#E8A080":C.rose} weight="fill"/>:<Fire size={14} color={tord.spicy?"#E8A080":C.gold} weight="fill"/>}{tord.type==="truth"?"Truth":"Dare"}{tord.spicy?" — Spicy":""}</div><p style={{fontFamily:PF,fontSize:19,fontStyle:"italic",color:tord.spicy?"#FAF0E8":C.text,lineHeight:1.65,margin:0}}>{tord.content}</p></Card>
+      {!tord.done?(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Btn onClick={async()=>await update({tord:{...tord,done:true}})}>Done!</Btn><Btn variant="ghost" onClick={async()=>await update({tord:null})}>Skip →</Btn></div>):(<div><Card gradient="linear-gradient(135deg,rgba(107,143,113,0.10),rgba(144,196,152,0.08))" style={{textAlign:"center",marginBottom:16,border:`1px solid ${C.sageBd}`}}><CheckCircle size={32} color={C.sage} weight="fill" style={{marginBottom:8}}/><div style={{fontWeight:700,color:C.sage,fontFamily:LT}}>Challenge completed!</div></Card><Btn variant="outline" onClick={async()=>await update({tord:null})}>Pick another →</Btn></div>)}
       </div>)}
     </div></div></ScreenWrap>
   );
 }
 
 function CompatScreen({me,partner,userKey,roomData,update,addN,back}){
-  const pk=userKey==="A"?"B":"A"; const fk=`compat_${todayKey()}`; const compat=roomData?.[fk]; const [loading,setLoading]=useState(false);
-  const generate=async()=>{ setLoading(true); try{ const raw=await callClaude('6 preference questions for a compatibility quiz. Each has a 1-5 scale. Return ONLY JSON array: [{"q":"question","low":"label for 1","high":"label for 5"},...] — no backticks.',"Generate."); const m=raw.match(/\[[\s\S]*?\]/); const qs=JSON.parse(m?m[0]:raw); await update({[fk]:{questions:qs,ratings:{A:{},B:{}}}}); }catch(e){console.error(e);} setLoading(false); };
-  const rate=async(i,val)=>{ if(compat?.ratings?.[userKey]?.[i]!==undefined) return; await update({[`${fk}.ratings.${userKey}.${i}`]:val}); await addN("compat",`${me?.name} rated question ${i+1}`); };
+  const pk=userKey==="A"?"B":"A";
+  const fk=`compat_${todayKey()}`;
+  const compat=roomData?.[fk];
+
+  const generate=async()=>{
+    const questions=getCompatSet();
+    await update({[fk]:{questions,ratings:{A:{},B:{}}}});
+  };
+
+  const rate=async(i,val)=>{
+    if(compat?.ratings?.[userKey]?.[i]!==undefined) return;
+    await update({[`${fk}.ratings.${userKey}.${i}`]:val});
+    await addN("compat",`${me?.name} rated question ${i+1}`);
+  };
+
   const myR=compat?.ratings?.[userKey]||{},theirR=compat?.ratings?.[pk]||{};
-  const myDone=compat?.questions&&Object.keys(myR).length===compat.questions.length; const theirDone=compat?.questions&&Object.keys(theirR).length===compat.questions.length; const both=myDone&&theirDone;
+  const myDone=compat?.questions&&Object.keys(myR).length===compat.questions.length;
+  const theirDone=compat?.questions&&Object.keys(theirR).length===compat.questions.length;
+  const both=myDone&&theirDone;
   const score=both?Math.round(100-compat.questions.reduce((acc,_,i)=>acc+Math.abs((myR[i]||3)-(theirR[i]||3)),0)/compat.questions.length*20):null;
   const scoreColor=score>=80?C.sage:score>=60?C.gold:C.rose;
+
   return (
     <ScreenWrap gradient="linear-gradient(180deg,#FFE8D0 0%,#FFF5EE 50%,#FFF6F3 100%)"><div style={{position:"relative",overflow:"hidden"}}><GradOrb size={280} top={-50} color1="rgba(212,146,42,0.22)" color2="rgba(240,200,120,0.08)"/>
     <div style={{padding:"22px 18px 48px",position:"relative",zIndex:1}}>
       <Hdr title="Compatibility" sub="See how alike you really are" back={back} right={<div style={{width:40,height:40,borderRadius:14,background:C.gradGold,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.md}}><ChartBar size={20} color="#fff" weight="fill"/></div>}/>
-      {!compat?.questions?(<div style={{textAlign:"center",paddingTop:20}} className="fade-rise"><div style={{marginBottom:24,display:"inline-flex",alignItems:"center",justifyContent:"center",width:100,height:100,borderRadius:"50%",background:C.gradGold,boxShadow:SHADOWS.xl}}><ChartBar size={48} color="#fff" weight="fill"/></div><p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>6 questions. Rate your preferences. See your match.</p>{loading?<Spinner text="Generating questions..."/>:<Btn variant="gold" onClick={generate}>Start the quiz</Btn>}</div>):(
-      <div className="fade-rise">{both&&<Card elevated layer gradient="linear-gradient(135deg,rgba(212,146,42,0.10),rgba(255,220,140,0.08))" style={{textAlign:"center",marginBottom:22,border:`1px solid ${C.goldBd}`}}><div style={{fontSize:11,fontWeight:700,color:C.gold,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10,fontFamily:LT}}>Your compatibility</div><div style={{fontSize:56,fontWeight:700,color:scoreColor,fontFamily:PF,marginBottom:8}}>{score}%</div><div style={{fontSize:14,color:C.muted,fontFamily:LT}}>{score>=80?"Beautifully aligned":score>=60?"Lovely mix of similarities":"Opposites attract"}</div></Card>}
-      {compat.questions.map((q,i)=>{ const my=myR[i],their=theirR[i],answered=my!==undefined; return <Card key={i} elevated style={{marginBottom:12}} className={`s${Math.min(i+1,6)}`}><div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:6,fontFamily:LT}}>Q{i+1}</div><div style={{fontSize:14,color:C.text,marginBottom:12,lineHeight:1.45,fontWeight:700,fontFamily:LT}}>{q.q}</div><div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.muted,marginBottom:10,fontFamily:LT}}><span>{q.low}</span><span>{q.high}</span></div><div style={{display:"flex",gap:8,marginBottom:12}}>{[1,2,3,4,5].map(v=><button key={v} onClick={()=>!answered&&rate(i,v)} className="card-hover" style={{flex:1,padding:"11px 0",borderRadius:14,border:"none",background:my===v?C.gradRose:"rgba(255,255,255,0.8)",cursor:answered?"default":"pointer",fontFamily:LT,fontSize:14,fontWeight:my===v?700:400,color:my===v?"#fff":C.text,transition:"all 0.15s",boxShadow:my===v?SHADOWS.md:SHADOWS.sm}}>{v}</button>)}</div>{both&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}><span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.roseSoft,color:C.rose,border:`1px solid ${C.roseBd}`,fontFamily:LT}}>{me?.name}: {my}</span><span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.goldSoft,color:C.gold,border:`1px solid ${C.goldBd}`,fontFamily:LT}}>{partner?.name}: {their}</span>{Math.abs(my-their)<=1&&<span style={{fontSize:11,padding:"4px 10px",borderRadius:20,background:C.sageSoft,color:C.sage,border:`1px solid ${C.sageBd}`,fontFamily:LT}}>Aligned</span>}</div>}{!answered&&<div style={{fontSize:11,color:C.muted,fontStyle:"italic",fontFamily:LT}}>Tap a number to rate</div>}</Card>; })}
-      {both&&<Btn variant="ghost" style={{marginTop:6}} onClick={()=>update({[fk]:null})}>Retake →</Btn>}{!both&&myDone&&<Card style={{background:"rgba(212,146,42,0.06)",border:`1px solid ${C.goldBd}`,textAlign:"center"}}><div style={{fontSize:13,color:C.gold,fontFamily:LT,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><Sparkle size={14} color={C.gold}/>Waiting for {partner?.name} to finish...</div></Card>}</div>)}
+      {!compat?.questions?(<div style={{textAlign:"center",paddingTop:20}} className="fade-rise">
+        <div style={{marginBottom:24,display:"inline-flex",alignItems:"center",justifyContent:"center",width:100,height:100,borderRadius:"50%",background:C.gradGold,boxShadow:SHADOWS.xl}}><ChartBar size={48} color="#fff" weight="fill"/></div>
+        <p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>6 questions. Rate your preferences. See your match.</p>
+        <Btn variant="gold" onClick={generate}>Start the quiz</Btn>
+      </div>):(
+      <div className="fade-rise">
+        {both&&<Card elevated layer gradient="linear-gradient(135deg,rgba(212,146,42,0.10),rgba(255,220,140,0.08))" style={{textAlign:"center",marginBottom:22,border:`1px solid ${C.goldBd}`}}><div style={{fontSize:11,fontWeight:700,color:C.gold,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10,fontFamily:LT}}>Your compatibility</div><div style={{fontSize:56,fontWeight:700,color:scoreColor,fontFamily:PF,marginBottom:8}}>{score}%</div><div style={{fontSize:14,color:C.muted,fontFamily:LT}}>{score>=80?"Beautifully aligned":score>=60?"Lovely mix of similarities":"Opposites attract"}</div></Card>}
+        {compat.questions.map((q,i)=>{ const my=myR[i],their=theirR[i],answered=my!==undefined; return <Card key={i} elevated style={{marginBottom:12}} className={`s${Math.min(i+1,6)}`}><div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:6,fontFamily:LT}}>Q{i+1}</div><div style={{fontSize:14,color:C.text,marginBottom:12,lineHeight:1.45,fontWeight:700,fontFamily:LT}}>{q.q}</div><div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.muted,marginBottom:10,fontFamily:LT}}><span>{q.low}</span><span>{q.high}</span></div><div style={{display:"flex",gap:8,marginBottom:12}}>{[1,2,3,4,5].map(v=><button key={v} onClick={()=>!answered&&rate(i,v)} className="card-hover" style={{flex:1,padding:"11px 0",borderRadius:14,border:"none",background:my===v?C.gradRose:"rgba(255,255,255,0.8)",cursor:answered?"default":"pointer",fontFamily:LT,fontSize:14,fontWeight:my===v?700:400,color:my===v?"#fff":C.text,transition:"all 0.15s",boxShadow:my===v?SHADOWS.md:SHADOWS.sm}}>{v}</button>)}</div>{both&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}><span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.roseSoft,color:C.rose,border:`1px solid ${C.roseBd}`,fontFamily:LT}}>{me?.name}: {my}</span><span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.goldSoft,color:C.gold,border:`1px solid ${C.goldBd}`,fontFamily:LT}}>{partner?.name}: {their}</span>{Math.abs(my-their)<=1&&<span style={{fontSize:11,padding:"4px 10px",borderRadius:20,background:C.sageSoft,color:C.sage,border:`1px solid ${C.sageBd}`,fontFamily:LT}}>Aligned</span>}</div>}{!answered&&<div style={{fontSize:11,color:C.muted,fontStyle:"italic",fontFamily:LT}}>Tap a number to rate</div>}</Card>; })}
+        {both&&<Btn variant="ghost" style={{marginTop:6}} onClick={()=>update({[fk]:null})}>Retake →</Btn>}
+        {!both&&myDone&&<Card style={{background:"rgba(212,146,42,0.06)",border:`1px solid ${C.goldBd}`,textAlign:"center"}}><div style={{fontSize:13,color:C.gold,fontFamily:LT,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><Sparkle size={14} color={C.gold}/>Waiting for {partner?.name} to finish...</div></Card>}
+      </div>)}
     </div></div></ScreenWrap>
   );
 }
@@ -2320,7 +2538,15 @@ function BucketList({me,partner,userKey,roomData,update,addN,back}){
   const bucket=roomData?.bucket||[]; const [text,setText]=useState(""); const [loading,setLoading]=useState(false);
   const addItem=async()=>{ if(!text.trim()) return; const item={id:Date.now()+Math.random(),text:text.trim(),by:me?.name,done:false,date:new Date().toLocaleDateString("en",{month:"short",day:"numeric"})}; await update({bucket:[item,...bucket]}); await addN("bucket",`${me?.name} added to your bucket list`); setText(""); };
   const toggle=async id=>{ await update({bucket:bucket.map(i=>i.id===id?{...i,done:!i.done}:i)}); };
-  const suggest=async()=>{ setLoading(true); try{ const raw=await callClaude('5 romantic bucket list ideas for a long-distance couple. Return ONLY a JSON array of 5 short strings, no backticks.',"Generate."); const m=raw.match(/\[[\s\S]*?\]/); const arr=JSON.parse(m?m[0]:raw); const items=arr.map(t=>({id:Date.now()+Math.random(),text:t,by:"AI",done:false,date:"suggested"})); await update({bucket:[...items,...bucket]}); }catch(e){console.error(e);} setLoading(false); };
+  const suggest=async()=>{
+    setLoading(true);
+    const shuffled=[...BUCKET_SUGGESTIONS].sort(()=>Math.random()-0.5);
+    const used=(bucket||[]).map(i=>i.text);
+    const fresh=shuffled.filter(s=>!used.includes(s)).slice(0,5);
+    const items=fresh.map(t=>({id:Date.now()+Math.random(),text:t,by:"✦ Suggested",done:false,date:"suggested"}));
+    await update({bucket:[...items,...bucket]});
+    setLoading(false);
+  };
   const done=bucket.filter(i=>i.done).length;
   return (
     <ScreenWrap gradient={C.gradUs}><div style={{position:"relative",overflow:"hidden"}}><GradOrb size={280} top={-50} color1="rgba(107,143,113,0.22)" color2="rgba(144,196,152,0.08)"/>
@@ -2477,7 +2703,13 @@ function MemoryJar({me,userKey,roomData,update,addN,back}){
 function DesireGame({me,partner,userKey,roomData,update,addN,back}){
   const pk=userKey==="A"?"B":"A"; const fk=`desire_${todayKey()}`; const desire=roomData?.[fk]; const [loading,setLoading]=useState(false); const [response,setResponse]=useState(desire?.responses?.[userKey]||""); const [category,setCategory]=useState("random");
   const CATS=[{key:"confess",Icon:ChatTeardrop,label:"Confess",desc:"Admit something bold"},{key:"dare",Icon:Fire,label:"Dare",desc:"Do something daring"},{key:"question",Icon:Sparkle,label:"Question",desc:"Answer something intimate"},{key:"fantasy",Icon:Star,label:"Fantasy",desc:"Share a fantasy"}];
-  const generate=async()=>{ setLoading(true); try{ const cat=category==="random"?CATS[Math.floor(Math.random()*CATS.length)].key:category; const prompts={confess:"Generate one bold confession prompt for a couple in a committed long-distance relationship. Push them to admit something intimate or vulnerable. Return ONLY the prompt.",dare:"Generate one spicy dare for a person in a long-distance relationship. Intimate and bold but doable alone and shareable via photo/text/voice. Return ONLY the dare.",question:"Generate one bold intimate question for a couple revealing desires or deep feelings. Push beyond surface level. Return ONLY the question.",fantasy:"Generate one prompt for a couple to share a fantasy — imaginative, sensual and specific. Return ONLY the prompt."}; const result=await callClaude("You generate bold adult content for consenting couples in committed long-distance relationships. Content is intimate and daring but always respectful.",prompts[cat]); await update({[fk]:{prompt:result,category:cat,responses:{},revealed:false}}); }catch(e){console.error(e);} setLoading(false); };
+  const generate=async()=>{
+    setLoading(true);
+    const cat=category==="random"?["confess","dare","question","fantasy"][Math.floor(Math.random()*4)]:category;
+    const prompt=getDesirePrompt(cat);
+    await update({[fk]:{prompt,category:cat,responses:{},revealed:false}});
+    setLoading(false);
+  };
   const submitResponse=async()=>{ if(!response.trim()) return; await update({[`${fk}.responses.${userKey}`]:response.trim()}); await addN("desire",`${me?.name} responded to Desire`); };
   const reveal=async()=>{ await update({[`${fk}.revealed`]:true}); };
   const phase=!desire?.prompt?"gen":!desire?.responses?.[userKey]?"respond":!desire?.responses?.[pk]?"wait":!desire?.revealed?"reveal":"result";
@@ -2627,7 +2859,7 @@ export default function App() {
         {screen==="nhie"     &&<NHIE          {...shared} back={backHome}/>}
         {screen==="tord"     &&<TruthOrDare   {...shared} back={backHome}/>}
         {screen==="compat"   &&<CompatScreen  {...shared} back={backHome}/>}
-        {screen==="lovelang" &&<LoveLangScreen{...shared} back={backHome}/>}
+        {screen==="checkin"   &&<RelationshipCheckIn {...shared} back={backHome}/>}
         {screen==="desire"   &&<DesireGame    {...shared} back={backHome}/>}
         {screen==="notes"    &&<LoveNotes     {...shared} back={backHome}/>}
         {screen==="grat"     &&<Gratitude     {...shared} back={backHome}/>}
