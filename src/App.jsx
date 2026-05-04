@@ -2765,6 +2765,15 @@ function DesireGame({me,partner,userKey,roomData,update,addN,back}){
 // ARCADE GAMES — Tic Tac Toe, Wordle Duel, Pictionary
 // ══════════════════════════════════════════════════════════════════
 
+function calculateWinner(board) {
+  const lines = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+  for (let line of lines) {
+    const [a, b, c] = line;
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
+  }
+  return null;
+}
+
 // ── TIC TAC TOE ────────────────────────────────────────────────────
 function TicTacToe({ me, partner, userKey, roomData, update, addN, back }) {
   const pk = userKey === "A" ? "B" : "A";
@@ -2774,11 +2783,11 @@ function TicTacToe({ me, partner, userKey, roomData, update, addN, back }) {
   
   const isXNext = game.xNext;
   const isMyTurn = (isXNext && userKey === "A") || (!isXNext && userKey === "B");
-  const winner = calculateWinner(game.board);
+  const boardWinner = calculateWinner(game.board);
   const isBestOf5 = game.currentRound >= 5;
   
   const handleClick = async (i) => {
-    if (game.board[i] || winner) return;
+    if (game.board[i] || boardWinner) return;
     const newBoard = [...game.board];
     newBoard[i] = isXNext ? "X" : "O";
     const newWinner = calculateWinner(newBoard);
@@ -2820,13 +2829,13 @@ function TicTacToe({ me, partner, userKey, roomData, update, addN, back }) {
         fontSize: 40,
         fontWeight: 700,
         color: cell === "X" ? C.rose : cell === "O" ? C.gold : "transparent",
-        cursor: isMyTurn && !winner ? "pointer" : "default",
+        cursor: isMyTurn && !boardWinner ? "pointer" : "default",
         fontFamily: PF,
         boxShadow: SHADOWS.sm,
         transition: "all 0.2s",
       }}
       onMouseEnter={(e) => {
-        if (isMyTurn && !winner && !game.board[i]) {
+        if (isMyTurn && !boardWinner && !game.board[i]) {
           e.currentTarget.style.background = "rgba(212,82,106,0.12)";
         }
       }}
@@ -2886,18 +2895,18 @@ function TicTacToe({ me, partner, userKey, roomData, update, addN, back }) {
 
           {/* Status */}
           <div style={{ textAlign: "center", marginBottom: 20 }}>
-            {!winner && game.board.every(cell => cell === null) ? (
+            {!boardWinner && game.board.every(cell => cell === null) ? (
               <div style={{ fontSize: 14, color: C.muted, fontFamily: LT }}>Round {game.currentRound + 1}/5 — {isMyTurn ? "Your turn" : `${partner?.name}'s turn`}</div>
-            ) : winner ? (
+            ) : boardWinner ? (
               <div style={{ fontSize: 16, fontWeight: 700, color: C.rose, fontFamily: LT, marginBottom: 16 }}>
-                🎉 {winner === "X" ? (userKey === "A" ? "You" : partner?.name) : (userKey === "B" ? "You" : partner?.name)} won this round!
+                🎉 {boardWinner === "X" ? (userKey === "A" ? "You" : partner?.name) : (userKey === "B" ? "You" : partner?.name)} won this round!
               </div>
             ) : game.board.every(cell => cell !== null) ? (
               <div style={{ fontSize: 14, color: C.gold, fontFamily: LT }}>It's a draw!</div>
             ) : null}
           </div>
 
-          {(winner || game.board.every(cell => cell !== null)) && game.currentRound < 5 && (
+          {(boardWinner || game.board.every(cell => cell !== null)) && game.currentRound < 5 && (
             <Btn onClick={() => {}} style={{ background: C.gradRose, border: "none", color: "#fff" }}>
               Round {game.currentRound + 1} complete ✓
             </Btn>
@@ -2920,15 +2929,6 @@ function TicTacToe({ me, partner, userKey, roomData, update, addN, back }) {
       </div>
     </ScreenWrap>
   );
-}
-
-function calculateWinner(board) {
-  const lines = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
-  for (let line of lines) {
-    const [a, b, c] = line;
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
-  }
-  return null;
 }
 
 // ── WORDLE DUEL ────────────────────────────────────────────────────
