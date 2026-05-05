@@ -777,7 +777,13 @@ function HomeTab({me,partner,myUser,partnerUser,roomData,roomId,userKey,update,a
   const together=togetherDays(roomData?.anniversary);
   const myBirthday=isBirthday(myUser?.birthday);
   const partnerBirthday=isBirthday(partnerUser?.birthday);
+const [installPrompt, setInstallPrompt] = useState(null);
 
+useEffect(() => {
+  const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
+  window.addEventListener("beforeinstallprompt", handler);
+  return () => window.removeEventListener("beforeinstallprompt", handler);
+}, []);
   useEffect(()=>{
     if(!roomData?.lastHeartbeat) return;
     const {from,ts}=roomData.lastHeartbeat;
@@ -950,7 +956,27 @@ const sendHeart=async()=>{
         </div>
 
       </div>
-
+{/* ── PWA INSTALL PROMPT ── */}
+{installPrompt && (
+  <div className="fade-rise" style={{
+    position:"fixed", bottom:200, left:16, right:16, zIndex:14,
+    background:"rgba(255,255,255,0.97)", borderRadius:24, padding:"18px 20px",
+    boxShadow:SHADOWS.xl, border:`1px solid ${C.roseBd}`,
+    display:"flex", alignItems:"center", gap:14,
+  }}>
+    <div style={{width:48,height:48,borderRadius:14,background:C.gradRose,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:SHADOWS.md}}>
+      <Heart size={24} color="#fff" weight="fill"/>
+    </div>
+    <div style={{flex:1}}>
+      <div style={{fontSize:14,fontWeight:700,color:C.text,fontFamily:LT,marginBottom:2}}>Add Heartbeat to your home screen</div>
+      <div style={{fontSize:12,color:C.muted,fontFamily:LT}}>Get push notifications and faster access</div>
+    </div>
+    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+      <button onClick={()=>{installPrompt.prompt();setInstallPrompt(null);}} style={{background:C.gradRose,border:"none",borderRadius:12,padding:"8px 14px",cursor:"pointer",fontFamily:LT,fontSize:12,fontWeight:700,color:"#fff"}}>Install</button>
+      <button onClick={()=>setInstallPrompt(null)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:LT,fontSize:11,color:C.muted}}>Later</button>
+    </div>
+  </div>
+)}
       {/* ── FLOATING HEART CTA ── */}
 <div style={{position:"fixed",bottom:110,right:16,zIndex:15,display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
   {partnerMsg&&(
