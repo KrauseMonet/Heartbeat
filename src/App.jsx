@@ -2654,12 +2654,98 @@ function TeasePanelLight({userKey, partner, fk, roomData, update, emojis, placeh
     </div>
   );
 }
+function QAHistory({me, partner, userKey, roomData, back}) {
+  const pk = userKey === "A" ? "B" : "A";
+
+  // Collect all qa_ keys from roomData and sort newest first
+  const history = Object.entries(roomData || {})
+    .filter(([key]) => key.startsWith("qa_"))
+    .map(([key, val]) => ({key, ...val}))
+    .filter(entry => entry.question && entry.answers?.[userKey] && entry.answers?.[pk])
+    .sort((a, b) => {
+      // key is qa_YYYYMMDD — sort descending
+      const da = a.key.replace("qa_","");
+      const db = b.key.replace("qa_","");
+      return db.localeCompare(da);
+    });
+
+  const formatDate = (key) => {
+    const d = key.replace("qa_","");
+    const year = d.slice(0,4), month = d.slice(4,6), day = d.slice(6,8);
+    return new Date(`${year}-${month}-${day}`).toLocaleDateString("en", {month:"long", day:"numeric", year:"numeric"});
+  };
+
+  return (
+    <ScreenWrap gradient={C.gradHome}>
+      <div style={{position:"relative", overflow:"hidden"}}>
+        <GradOrb size={280} top={-50}/>
+        <div style={{padding:"22px 18px 60px", position:"relative", zIndex:1}}>
+          <Hdr
+            title="Past Answers"
+            sub={`${history.length} questions answered together`}
+            back={back}
+            right={<div style={{width:40,height:40,borderRadius:14,background:C.gradRose,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.md}}><ChatTeardrop size={20} color="#fff" weight="fill"/></div>}
+          />
+
+          {history.length === 0 ? (
+            <div style={{textAlign:"center", padding:"48px 0"}}>
+              <div style={{fontSize:48, marginBottom:16}}>💬</div>
+              <div style={{fontSize:15, color:C.muted, fontFamily:LT}}>No shared answers yet — complete today's question first.</div>
+            </div>
+          ) : (
+            <div style={{display:"flex", flexDirection:"column", gap:20}}>
+              {history.map((entry, i) => (
+                <div key={entry.key} className={`s${Math.min(i+1,6)}`}>
+                  {/* Date label */}
+                  <div style={{fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:LT, marginBottom:10, display:"flex", alignItems:"center", gap:6}}>
+                    <CalendarBlank size={11} color={C.muted}/> {formatDate(entry.key)}
+                  </div>
+
+                  {/* Question */}
+                  <Card elevated gradient="linear-gradient(135deg,rgba(255,228,220,0.99),rgba(255,248,244,0.96))" style={{marginBottom:10}}>
+                    <div style={{fontSize:11, fontWeight:700, color:C.rose, textTransform:"uppercase", letterSpacing:"0.09em", marginBottom:8, fontFamily:LT, display:"flex", alignItems:"center", gap:6}}>
+                      <ChatTeardrop size={12} color={C.rose} weight="fill"/> The question
+                    </div>
+                    <p style={{fontFamily:PF, fontSize:17, fontStyle:"italic", lineHeight:1.65, color:C.text, margin:0}}>"{entry.question}"</p>
+                  </Card>
+
+                  {/* Both answers */}
+                  <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
+                    {[[userKey, me?.name, C.rose, C.roseSoft, C.roseBd], [pk, partner?.name, C.gold, C.goldSoft, C.goldBd]].map(([key, name, color, soft, bd]) => (
+                      <div key={key} style={{background:soft, borderRadius:16, padding:"14px 14px", border:`1px solid ${bd}`}}>
+                        <div style={{fontSize:10, fontWeight:700, color, fontFamily:LT, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em"}}>{name}</div>
+                        <div style={{fontSize:13, color:C.text, fontFamily:LT, lineHeight:1.6, marginBottom: entry.guesses?.[key==="A"?"B":"A"] ? 10 : 0}}>
+                          {entry.answers?.[key] || <i style={{color:C.muted}}>—</i>}
+                        </div>
+                        {entry.guesses?.[key === userKey ? pk : userKey] && (
+                          <div style={{borderTop:`1px solid ${bd}`, paddingTop:8, marginTop:8}}>
+                            <div style={{fontSize:9, color, fontFamily:LT, fontWeight:700, marginBottom:4, textTransform:"uppercase", letterSpacing:"0.06em"}}>
+                              {key === userKey ? `${partner?.name}'s guess` : `${me?.name}'s guess`}
+                            </div>
+                            <div style={{fontSize:12, color:C.muted, fontFamily:LT, lineHeight:1.5, fontStyle:"italic"}}>
+                              "{entry.guesses?.[key === userKey ? pk : userKey]}"
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </ScreenWrap>
+  );
+}
 function QAScreen({me, partner, userKey, roomData, update, addN, back}) {
   const pk = userKey === "A" ? "B" : "A";
   const fk = `qa_${todayKey()}`;
   const qa = roomData?.[fk];
   const [ans, setAns] = useState(qa?.answers?.[userKey] || "");
   const [guess, setGuess] = useState(qa?.guesses?.[userKey] || "");
+  const [showHistory, setShowHistory] = useState(false);
 
   const phase = !qa?.question ? "gen"
     : !qa?.answers?.[userKey] ? "answer"
@@ -2673,14 +2759,26 @@ function QAScreen({me, partner, userKey, roomData, update, addN, back}) {
     await update({[fk]: {question: q, answers: {}, guesses: {}, date: todayStr()}});
   };
 
-  const QCard = () => (
+  // Show history screen
+  if (showHistory) {
+    return <QAHistory me={me} partner={partner} userKey={userKey} roomData={roomData} back={() => setShowHistory(false)}/>;
+  }
+
+  // The question card as plain JSX — NOT a component function
+  const questionCard = qa?.question ? (
     <Card elevated gradient="linear-gradient(135deg,rgba(255,228,220,0.99),rgba(255,248,244,0.96))" style={{marginBottom: 22}}>
       <div style={{fontSize: 11, fontWeight: 700, color: C.rose, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 10, fontFamily: LT, display: "flex", alignItems: "center", gap: 6}}>
         <ChatTeardrop size={14} color={C.rose} weight="fill"/>Today's question
       </div>
       <p style={{fontFamily: PF, fontSize: 20, fontStyle: "italic", lineHeight: 1.65, color: C.text, margin: 0}}>"{qa.question}"</p>
     </Card>
-  );
+  ) : null;
+
+  // Count past completed answers
+  const pastCount = Object.keys(roomData || {})
+    .filter(k => k.startsWith("qa_") && k !== fk)
+    .filter(k => roomData[k]?.answers?.[userKey] && roomData[k]?.answers?.[pk])
+    .length;
 
   return (
     <ScreenWrap gradient={C.gradHome}>
@@ -2691,7 +2789,13 @@ function QAScreen({me, partner, userKey, roomData, update, addN, back}) {
             title="Daily Question"
             sub={new Date().toLocaleDateString("en", {weekday: "long", month: "long", day: "numeric"})}
             back={back}
-            right={<div style={{width: 40, height: 40, borderRadius: 14, background: C.gradRose, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: SHADOWS.md}}><ChatTeardrop size={20} color="#fff" weight="fill"/></div>}
+            right={
+              pastCount > 0
+                ? <button onClick={() => setShowHistory(true)} style={{background:C.roseSoft, border:`1px solid ${C.roseBd}`, borderRadius:14, padding:"8px 14px", cursor:"pointer", fontFamily:LT, fontSize:12, fontWeight:700, color:C.rose, display:"flex", alignItems:"center", gap:5}}>
+                    <ChatTeardrop size={13} color={C.rose} weight="fill"/> {pastCount} past
+                  </button>
+                : <div style={{width:40,height:40,borderRadius:14,background:C.gradRose,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.md}}><ChatTeardrop size={20} color="#fff" weight="fill"/></div>
+            }
           />
 
           {/* GEN */}
@@ -2712,36 +2816,17 @@ function QAScreen({me, partner, userKey, roomData, update, addN, back}) {
           {/* ANSWER */}
           {phase === "answer" && (
             <div className="fade-rise">
-              <QCard/>
-              <Field
-                textarea
-                label={`Your answer, ${me?.name}`}
-                value={ans}
-                onChange={e => setAns(e.target.value)}
-                placeholder="Be honest — your partner will try to guess this..."
-              />
-              <Btn
-                disabled={!ans.trim()}
-                onClick={async () => {
-                  if (!ans.trim()) return;
-                  await update({[`${fk}.answers.${userKey}`]: ans.trim()});
-                  await addN("qa", `${me?.name} answered today's question`);
-                }}
-              >
+              {questionCard}
+              <Field textarea label={`Your answer, ${me?.name}`} value={ans} onChange={e => setAns(e.target.value)} placeholder="Be honest — your partner will try to guess this..."/>
+              <Btn disabled={!ans.trim()} onClick={async () => {
+                if (!ans.trim()) return;
+                await update({[`${fk}.answers.${userKey}`]: ans.trim()});
+                await addN("qa", `${me?.name} answered today's question`);
+              }}>
                 Lock in my answer →
               </Btn>
-
-              {/* Teases while partner is also answering */}
               {qa?.answers?.[pk] === undefined && (
-                <TeasePanelLight
-                  userKey={userKey}
-                  partner={partner}
-                  fk={fk}
-                  roomData={roomData}
-                  update={update}
-                  emojis={QA_EMOJIS}
-                  placeholder="Thinking face energy..."
-                />
+                <TeasePanelLight userKey={userKey} partner={partner} fk={fk} roomData={roomData} update={update} emojis={QA_EMOJIS} placeholder="Thinking face energy..."/>
               )}
             </div>
           )}
@@ -2749,14 +2834,13 @@ function QAScreen({me, partner, userKey, roomData, update, addN, back}) {
           {/* GUESS */}
           {phase === "guess" && (
             <div className="fade-rise">
-              <QCard/>
+              {questionCard}
               <Card style={{marginBottom: 18, background: "rgba(212,82,106,0.06)", border: `1px solid ${C.roseBd}`}}>
                 <div style={{fontSize: 11, fontWeight: 700, color: C.rose, marginBottom: 8, fontFamily: LT, display: "flex", alignItems: "center", gap: 5}}>
                   <CheckCircle size={14} color={C.rose} weight="fill"/>Your answer is locked in
                 </div>
                 <div style={{fontSize: 15, color: C.text, fontFamily: LT}}>{qa?.answers?.[userKey]}</div>
               </Card>
-
               {!qa?.answers?.[pk] && (
                 <Card style={{marginBottom: 18, background: "rgba(212,146,42,0.06)", border: `1px solid ${C.goldBd}`}}>
                   <div style={{fontSize: 13, color: C.gold, fontFamily: LT, display: "flex", alignItems: "center", gap: 6}}>
@@ -2764,36 +2848,16 @@ function QAScreen({me, partner, userKey, roomData, update, addN, back}) {
                   </div>
                 </Card>
               )}
-
-              <Field
-                textarea
-                label={`What do you think ${partner?.name} said?`}
-                value={guess}
-                onChange={e => setGuess(e.target.value)}
-                placeholder={`Guess ${partner?.name}'s answer...`}
-              />
-              <Btn
-                disabled={!guess.trim()}
-                onClick={async () => {
-                  if (!guess.trim()) return;
-                  await update({[`${fk}.guesses.${userKey}`]: guess.trim()});
-                  await addN("qa", `${me?.name} guessed your answer`);
-                }}
-              >
+              <Field textarea label={`What do you think ${partner?.name} said?`} value={guess} onChange={e => setGuess(e.target.value)} placeholder={`Guess ${partner?.name}'s answer...`}/>
+              <Btn disabled={!guess.trim()} onClick={async () => {
+                if (!guess.trim()) return;
+                await update({[`${fk}.guesses.${userKey}`]: guess.trim()});
+                await addN("qa", `${me?.name} guessed your answer`);
+              }}>
                 Submit my guess →
               </Btn>
-
-              {/* Teases while waiting for partner to guess */}
               {!qa?.guesses?.[pk] && (
-                <TeasePanelLight
-                  userKey={userKey}
-                  partner={partner}
-                  fk={fk}
-                  roomData={roomData}
-                  update={update}
-                  emojis={QA_EMOJIS}
-                  placeholder="I know what you said..."
-                />
+                <TeasePanelLight userKey={userKey} partner={partner} fk={fk} roomData={roomData} update={update} emojis={QA_EMOJIS} placeholder="I know what you said..."/>
               )}
             </div>
           )}
@@ -2820,19 +2884,15 @@ function QAScreen({me, partner, userKey, roomData, update, addN, back}) {
                 </Card>
               ))}
 
-              {/* React to results */}
-              <TeasePanelLight
-                userKey={userKey}
-                partner={partner}
-                fk={fk}
-                roomData={roomData}
-                update={update}
-                emojis={QA_EMOJIS}
-                placeholder="React to their answer..."
-              />
+              <TeasePanelLight userKey={userKey} partner={partner} fk={fk} roomData={roomData} update={update} emojis={QA_EMOJIS} placeholder="React to their answer..."/>
 
-              <div style={{marginTop: 16}}>
-                <Btn variant="ghost" onClick={back}>← Back</Btn>
+              <div style={{marginTop: 16, display:"flex", gap:10}}>
+                <Btn variant="ghost" onClick={back} style={{flex:1}}>← Back</Btn>
+                {pastCount > 0 && (
+                  <Btn variant="outline" onClick={() => setShowHistory(true)} style={{flex:1}}>
+                    Past answers →
+                  </Btn>
+                )}
               </div>
             </div>
           )}
@@ -2918,43 +2978,15 @@ function NHIE({me,partner,userKey,roomData,update,addN,back}){
     </div></div></ScreenWrap>
   );
 }
-
-function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
-  const tord = roomData?.tord;
-  const [spicy, setSpicy] = useState(false);
-
-  const TOD_EMOJIS = ["👀","🫣","😏","🎭","🙈","🔥","😈","💀","😤","🤭"];
-  const TOD_EMOJIS_SPICY = ["🍆","🍑","💦","🔥","😈","🫦","💋","🥵","😏","❤️‍🔥"];
-
-  const pick = async type => {
-    const content = type === "truth" ? getTruthQuestion(spicy) : getDare(spicy);
-    await update({tord: {type, content, done: false, spicy, teases: [], startedAt: Date.now()}});
-    await addN("tord", `${me?.name} picked a ${type}${spicy ? " 🔥" : ""}`);
-  };
-
-  // Tease helpers for ToD — uses tord.teases directly
+function TeasePanelToD({userKey, partner, tordTeases, tordSpicy, update}) {
   const [teaseText, setTeaseText] = useState("");
   const [localTeases, setLocalTeases] = useState([]);
 
-  useEffect(() => { setLocalTeases([]); }, [tord?.startedAt]);
+  const TOD_EMOJIS =       ["👀","🫣","😏","🎭","🙈","🔥","😈","💀","😤","🤭"];
+  const TOD_EMOJIS_SPICY = ["🍆","🍑","💦","🔥","😈","🫦","💋","🥵","😏","❤️‍🔥"];
+  const activeEmojis = tordSpicy ? TOD_EMOJIS_SPICY : TOD_EMOJIS;
 
-  const sendEmoji = async (emoji) => {
-    const tease = {from: userKey, emoji, ts: Date.now()};
-    setLocalTeases(prev => [...prev, tease]);
-    const current = tord?.teases || [];
-    await update({["tord.teases"]: [...current, tease].slice(-20)});
-  };
-
-  const sendText = async () => {
-    if (!teaseText.trim()) return;
-    const tease = {from: userKey, text: teaseText.trim(), ts: Date.now()};
-    setLocalTeases(prev => [...prev, tease]);
-    const current = tord?.teases || [];
-    await update({["tord.teases"]: [...current, tease].slice(-20)});
-    setTeaseText("");
-  };
-
-  const firestoreTeases = tord?.teases || [];
+  const firestoreTeases = tordTeases || [];
   const firestoreTs = new Set(firestoreTeases.map(t => t.ts));
   const pending = localTeases.filter(t => !firestoreTs.has(t.ts));
   const allTeases = [...firestoreTeases, ...pending].sort((a, b) => a.ts - b.ts);
@@ -2962,30 +2994,38 @@ function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
   const myRecentTeases = allTeases.filter(t => t.from === userKey).slice(-2);
   const latestPartnerTease = partnerTeases[partnerTeases.length - 1];
 
-  const activeEmojis = tord?.spicy ? TOD_EMOJIS_SPICY : TOD_EMOJIS;
+  const sendEmoji = async (emoji) => {
+    const tease = {from: userKey, emoji, ts: Date.now()};
+    setLocalTeases(prev => [...prev, tease]);
+    await update({"tord.teases": [...firestoreTeases, tease].slice(-20)});
+  };
 
-  const TeasePanelToD = () => (
+  const sendText = async () => {
+    if (!teaseText.trim()) return;
+    const tease = {from: userKey, text: teaseText.trim(), ts: Date.now()};
+    setLocalTeases(prev => [...prev, tease]);
+    await update({"tord.teases": [...firestoreTeases, tease].slice(-20)});
+    setTeaseText("");
+  };
+
+  return (
     <div style={{marginTop: 16}}>
       {/* Partner's latest tease */}
       {latestPartnerTease && (
         <div className="fade-rise" style={{
-          background: tord?.spicy ? "rgba(212,82,106,0.12)" : C.roseSoft,
-          borderRadius: 14,
-          padding: "11px 14px",
-          marginBottom: 12,
-          border: `1px solid ${tord?.spicy ? "rgba(212,82,106,0.25)" : C.roseBd}`,
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
+          background: tordSpicy ? "rgba(212,82,106,0.12)" : C.roseSoft,
+          borderRadius: 14, padding: "11px 14px", marginBottom: 12,
+          border: `1px solid ${tordSpicy ? "rgba(212,82,106,0.25)" : C.roseBd}`,
+          display: "flex", alignItems: "center", gap: 10,
         }}>
-          <div style={{width: 28, height: 28, borderRadius: "50%", background: tord?.spicy ? "linear-gradient(135deg,#8B2A1A,#C4522A)" : C.gradRose, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: LT}}>
+          <div style={{width: 28, height: 28, borderRadius: "50%", background: tordSpicy ? "linear-gradient(135deg,#8B2A1A,#C4522A)" : C.gradRose, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: LT}}>
             {partner?.name?.[0]}
           </div>
           <div style={{flex: 1}}>
-            <div style={{fontSize: 10, color: tord?.spicy ? "#E8A080" : C.rose, fontFamily: LT, fontWeight: 700, marginBottom: 3}}>{partner?.name}</div>
+            <div style={{fontSize: 10, color: tordSpicy ? "#E8A080" : C.rose, fontFamily: LT, fontWeight: 700, marginBottom: 3}}>{partner?.name}</div>
             {latestPartnerTease.emoji
               ? <span style={{fontSize: 22}}>{latestPartnerTease.emoji}</span>
-              : <span style={{fontSize: 13, color: tord?.spicy ? "#FAF0E8" : C.text, fontFamily: PF, fontStyle: "italic"}}>"{latestPartnerTease.text}"</span>
+              : <span style={{fontSize: 13, color: tordSpicy ? "#FAF0E8" : C.text, fontFamily: PF, fontStyle: "italic"}}>"{latestPartnerTease.text}"</span>
             }
           </div>
         </div>
@@ -2995,7 +3035,7 @@ function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
       {myRecentTeases.length > 0 && (
         <div style={{display: "flex", gap: 6, justifyContent: "flex-end", marginBottom: 10, flexWrap: "wrap"}}>
           {myRecentTeases.map((t, i) => (
-            <div key={i} style={{background: tord?.spicy ? "rgba(255,255,255,0.07)" : "rgba(212,82,106,0.06)", borderRadius: 10, padding: t.emoji ? "5px 7px" : "5px 10px", fontSize: t.emoji ? 16 : 11, color: tord?.spicy ? "rgba(250,240,232,0.5)" : C.muted, fontFamily: LT, fontStyle: t.text ? "italic" : "normal", border: `1px solid ${tord?.spicy ? "rgba(255,255,255,0.08)" : C.roseBd}`}}>
+            <div key={i} style={{background: tordSpicy ? "rgba(255,255,255,0.07)" : "rgba(212,82,106,0.06)", borderRadius: 10, padding: t.emoji ? "5px 7px" : "5px 10px", fontSize: t.emoji ? 16 : 11, color: tordSpicy ? "rgba(250,240,232,0.5)" : C.muted, fontFamily: LT, fontStyle: t.text ? "italic" : "normal", border: `1px solid ${tordSpicy ? "rgba(255,255,255,0.08)" : C.roseBd}`}}>
               {t.emoji || `"${t.text}"`}
             </div>
           ))}
@@ -3003,18 +3043,16 @@ function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
       )}
 
       {/* Emoji bar */}
-      <div style={{background: tord?.spicy ? "rgba(255,255,255,0.04)" : "rgba(212,82,106,0.04)", borderRadius: 16, padding: "12px 12px 10px", border: `1px solid ${tord?.spicy ? "rgba(255,255,255,0.07)" : C.roseBd}`, marginBottom: 10}}>
-        <div style={{fontSize: 10, color: tord?.spicy ? "rgba(250,240,232,0.35)" : C.muted, fontFamily: LT, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8}}>
+      <div style={{background: tordSpicy ? "rgba(255,255,255,0.04)" : "rgba(212,82,106,0.04)", borderRadius: 16, padding: "12px 12px 10px", border: `1px solid ${tordSpicy ? "rgba(255,255,255,0.07)" : C.roseBd}`, marginBottom: 10}}>
+        <div style={{fontSize: 10, color: tordSpicy ? "rgba(250,240,232,0.35)" : C.muted, fontFamily: LT, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8}}>
           React while they do it...
         </div>
         <div style={{display: "flex", gap: 6, flexWrap: "wrap"}}>
           {activeEmojis.map(emoji => (
-            <button
-              key={emoji}
-              onClick={() => sendEmoji(emoji)}
-              style={{fontSize: 20, background: tord?.spicy ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.8)", border: `1px solid ${tord?.spicy ? "rgba(255,255,255,0.08)" : C.border}`, borderRadius: 10, width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s", flexShrink: 0}}
-              onMouseEnter={e => {e.currentTarget.style.transform="scale(1.18)"; e.currentTarget.style.background=tord?.spicy?"rgba(212,82,106,0.25)":C.roseSoft;}}
-              onMouseLeave={e => {e.currentTarget.style.transform="scale(1)"; e.currentTarget.style.background=tord?.spicy?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.8)";}}
+            <button key={emoji} onClick={() => sendEmoji(emoji)}
+              style={{fontSize: 20, background: tordSpicy ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.8)", border: `1px solid ${tordSpicy ? "rgba(255,255,255,0.08)" : C.border}`, borderRadius: 10, width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s", flexShrink: 0}}
+              onMouseEnter={e => {e.currentTarget.style.transform="scale(1.18)"; e.currentTarget.style.background=tordSpicy?"rgba(212,82,106,0.25)":C.roseSoft;}}
+              onMouseLeave={e => {e.currentTarget.style.transform="scale(1)"; e.currentTarget.style.background=tordSpicy?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.8)";}}
               onTouchStart={e => e.currentTarget.style.transform="scale(1.18)"}
               onTouchEnd={e => e.currentTarget.style.transform="scale(1)"}
             >
@@ -3031,20 +3069,28 @@ function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
           value={teaseText}
           onChange={e => setTeaseText(e.target.value)}
           onKeyPress={e => e.key === "Enter" && sendText()}
-          placeholder={tord?.spicy ? "Say something cheeky..." : "React to their turn..."}
+          placeholder={tordSpicy ? "Say something cheeky..." : "React to their turn..."}
           maxLength={60}
-          style={{flex: 1, background: tord?.spicy ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.85)", border: `1.5px solid ${tord?.spicy ? "rgba(255,255,255,0.10)" : C.border}`, borderRadius: 13, padding: "11px 14px", fontFamily: LT, fontSize: 14, color: tord?.spicy ? "#FAF0E8" : C.text, outline: "none"}}
+          style={{flex: 1, background: tordSpicy ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.85)", border: `1.5px solid ${tordSpicy ? "rgba(255,255,255,0.10)" : C.border}`, borderRadius: 13, padding: "11px 14px", fontFamily: LT, fontSize: 14, color: tordSpicy ? "#FAF0E8" : C.text, outline: "none"}}
         />
-        <button
-          onClick={sendText}
-          disabled={!teaseText.trim()}
-          style={{width: 44, height: 44, borderRadius: 13, background: teaseText.trim() ? (tord?.spicy ? "linear-gradient(135deg,#8B2A1A,#C4522A)" : C.gradRose) : "rgba(212,82,106,0.08)", border: "none", cursor: teaseText.trim() ? "pointer" : "not-allowed", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s"}}
+        <button onClick={sendText} disabled={!teaseText.trim()}
+          style={{width: 44, height: 44, borderRadius: 13, background: teaseText.trim() ? (tordSpicy ? "linear-gradient(135deg,#8B2A1A,#C4522A)" : C.gradRose) : "rgba(212,82,106,0.08)", border: "none", cursor: teaseText.trim() ? "pointer" : "not-allowed", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s"}}
         >
           💬
         </button>
       </div>
     </div>
   );
+}
+function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
+  const tord = roomData?.tord;
+  const [spicy, setSpicy] = useState(false);
+
+  const pick = async type => {
+    const content = type === "truth" ? getTruthQuestion(spicy) : getDare(spicy);
+    await update({tord: {type, content, done: false, spicy, teases: [], startedAt: Date.now()}});
+    await addN("tord", `${me?.name} picked a ${type}${spicy ? " 🔥" : ""}`);
+  };
 
   return (
     <ScreenWrap gradient={spicy ? "linear-gradient(180deg,#2A0F08 0%,#3D1A12 30%,#FFF6F3 100%)" : C.gradPlay}>
@@ -3052,7 +3098,6 @@ function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
         {!spicy && <GradOrb size={280} top={-50} color1="rgba(139,107,173,0.22)" color2="rgba(180,150,220,0.08)"/>}
         <div style={{padding: "22px 18px 48px", position: "relative", zIndex: 1}}>
 
-          {/* Header */}
           <div style={{display: "flex", alignItems: "center", gap: 12, marginBottom: 26}}>
             <BackBtn onClick={back}/>
             <div style={{flex: 1}}>
@@ -3066,7 +3111,7 @@ function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
             </div>
           </div>
 
-          {/* PICK SCREEN */}
+          {/* PICK */}
           {!tord?.type && (
             <div className="fade-rise">
               <div style={{textAlign: "center", paddingTop: 8, marginBottom: 28}}>
@@ -3092,10 +3137,13 @@ function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
             </div>
           )}
 
-          {/* ACTIVE CHALLENGE */}
+          {/* ACTIVE */}
           {tord?.type && (
             <div className="fade-rise">
-              <Card elevated layer gradient={tord.spicy ? "linear-gradient(145deg,rgba(42,15,8,0.96),rgba(80,25,15,0.91))" : tord.type === "truth" ? "linear-gradient(135deg,rgba(212,82,106,0.08),rgba(255,200,180,0.12))" : "linear-gradient(135deg,rgba(212,146,42,0.08),rgba(255,220,140,0.12))"} style={{marginBottom: 20, textAlign: "center"}}>
+              <Card elevated layer
+                gradient={tord.spicy ? "linear-gradient(145deg,rgba(42,15,8,0.96),rgba(80,25,15,0.91))" : tord.type === "truth" ? "linear-gradient(135deg,rgba(212,82,106,0.08),rgba(255,200,180,0.12))" : "linear-gradient(135deg,rgba(212,146,42,0.08),rgba(255,220,140,0.12))"}
+                style={{marginBottom: 20, textAlign: "center"}}
+              >
                 <div style={{fontSize: 11, fontWeight: 700, color: tord.spicy ? "#E8A080" : tord.type === "truth" ? C.rose : C.gold, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16, fontFamily: LT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6}}>
                   {tord.type === "truth"
                     ? <ChatTeardrop size={14} color={tord.spicy ? "#E8A080" : C.rose} weight="fill"/>
@@ -3103,14 +3151,11 @@ function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
                   }
                   {tord.type === "truth" ? "Truth" : "Dare"}{tord.spicy ? " — Spicy" : ""}
                 </div>
-                <p style={{fontFamily: PF, fontSize: 19, fontStyle: "italic", color: tord.spicy ? "#FAF0E8" : C.text, lineHeight: 1.65, margin: 0}}>
-                  {tord.content}
-                </p>
+                <p style={{fontFamily: PF, fontSize: 19, fontStyle: "italic", color: tord.spicy ? "#FAF0E8" : C.text, lineHeight: 1.65, margin: 0}}>{tord.content}</p>
               </Card>
 
-              {/* Actions */}
               {!tord.done
-                ? <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 0}}>
+                ? <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12}}>
                     <Btn onClick={async () => await update({tord: {...tord, done: true}})}>Done!</Btn>
                     <Btn variant="ghost" onClick={async () => await update({tord: null})}>Skip →</Btn>
                   </div>
@@ -3123,8 +3168,14 @@ function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
                   </div>
               }
 
-              {/* Live teases */}
-              <TeasePanelToD/>
+              {/* TeasePanelToD now receives props — no inline component */}
+              <TeasePanelToD
+                userKey={userKey}
+                partner={partner}
+                tordTeases={tord?.teases}
+                tordSpicy={tord?.spicy}
+                update={update}
+              />
             </div>
           )}
 
@@ -3641,23 +3692,195 @@ function getDesirePromptV2(cat) {
 // ══════════════════════════════════════════════════════════════════
 // DESIRE GAME COMPONENT — paste below the prompts above
 // ══════════════════════════════════════════════════════════════════
+// ── 1. TEASE LIVE — extracted top-level component ─────────────────
+function TeaseLiveDesire({
+  userKey, partner,
+  firestoreTeases, localTeases,
+  sendTease, sendTeaseText,
+  teaseText, setTeaseText,
+}) {
+  const REACTIONS = ["🍆","🍑","💦","🔥","😈","🫦","💋","🥵","😏","❤️‍🔥"];
 
+  const firestoreTs = new Set(firestoreTeases.map(t => t.ts));
+  const pending = localTeases.filter(t => !firestoreTs.has(t.ts));
+  const allTeases = [...firestoreTeases, ...pending].sort((a, b) => a.ts - b.ts);
+
+  const partnerTeases = allTeases.filter(t => t.from !== userKey);
+  const latestPartnerTease = partnerTeases[partnerTeases.length - 1];
+  const myRecentTeases = allTeases.filter(t => t.from === userKey).slice(-3);
+
+  return (
+    <div style={{marginTop: 20}}>
+      {/* Partner's latest tease */}
+      {latestPartnerTease && (
+        <div className="fade-rise" style={{background: "rgba(212,82,106,0.12)", borderRadius: 16, padding: "14px 18px", marginBottom: 14, border: "1px solid rgba(212,82,106,0.25)", display: "flex", alignItems: "center", gap: 12}}>
+          <div style={{width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg,#8B2A1A,#C4522A)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#FAF0E8", fontFamily: LT}}>
+            {partner?.name?.[0]}
+          </div>
+          <div style={{flex: 1}}>
+            <div style={{fontSize: 10, color: "#E8A080", fontFamily: LT, fontWeight: 700, marginBottom: 4}}>{partner?.name}</div>
+            {latestPartnerTease.emoji
+              ? <div style={{fontSize: 28, lineHeight: 1}}>{latestPartnerTease.emoji}</div>
+              : <div style={{fontSize: 14, color: "#FAF0E8", fontFamily: PF, fontStyle: "italic", lineHeight: 1.5}}>"{latestPartnerTease.text}"</div>
+            }
+          </div>
+        </div>
+      )}
+
+      {/* My recent teases */}
+      {myRecentTeases.length > 0 && (
+        <div style={{display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12, justifyContent: "flex-end"}}>
+          {myRecentTeases.map((t, i) => (
+            <div key={i} style={{background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: t.emoji ? "6px 8px" : "6px 12px", fontSize: t.emoji ? 18 : 12, color: "rgba(250,240,232,0.5)", fontFamily: LT, fontStyle: t.text ? "italic" : "normal", border: "1px solid rgba(255,255,255,0.06)"}}>
+              {t.emoji || `"${t.text}"`}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Emoji bar */}
+      <div style={{background: "rgba(255,255,255,0.04)", borderRadius: 18, padding: "14px 12px", border: "1px solid rgba(255,255,255,0.07)", marginBottom: 12}}>
+        <div style={{fontSize: 10, color: "rgba(250,240,232,0.35)", fontFamily: LT, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10}}>
+          React while they think...
+        </div>
+        <div style={{display: "flex", gap: 6, flexWrap: "wrap"}}>
+          {REACTIONS.map(emoji => (
+            <button key={emoji} onClick={() => sendTease(emoji)}
+              style={{fontSize: 22, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, width: 44, height: 44, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s", flexShrink: 0}}
+              onMouseEnter={e => {e.currentTarget.style.background="rgba(212,82,106,0.25)"; e.currentTarget.style.transform="scale(1.15)";}}
+              onMouseLeave={e => {e.currentTarget.style.background="rgba(255,255,255,0.06)"; e.currentTarget.style.transform="scale(1)";}}
+              onTouchStart={e => e.currentTarget.style.transform="scale(1.15)"}
+              onTouchEnd={e => e.currentTarget.style.transform="scale(1)"}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Text tease */}
+      <div style={{display: "flex", gap: 10}}>
+        <input
+          type="text"
+          value={teaseText}
+          onChange={e => setTeaseText(e.target.value)}
+          onKeyPress={e => e.key === "Enter" && sendTeaseText()}
+          placeholder="Say something cheeky..."
+          maxLength={60}
+          style={{flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 14, padding: "12px 16px", fontFamily: LT, fontSize: 14, color: "#FAF0E8", outline: "none"}}
+        />
+        <button onClick={sendTeaseText} disabled={!teaseText.trim()}
+          style={{width: 48, height: 48, borderRadius: 14, background: teaseText.trim() ? "linear-gradient(135deg,#8B2A1A,#C4522A)" : "rgba(255,255,255,0.06)", border: "none", cursor: teaseText.trim() ? "pointer" : "not-allowed", fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s"}}
+        >
+          💋
+        </button>
+      </div>
+    </div>
+  );
+}
+// ── 2. DESIRE HISTORY SCREEN ──────────────────────────────────────
+function DesireHistory({me, partner, userKey, roomData, back}) {
+  const pk = userKey === "A" ? "B" : "A";
+  const history = (roomData?.desireHistory || []);
+
+  const CATS = {
+    confess: {label:"Confess", emoji:"🫦"},
+    dare:    {label:"Dare",    emoji:"🔥"},
+    question:{label:"Question",emoji:"💋"},
+    fantasy: {label:"Fantasy", emoji:"🌙"},
+  };
+
+  const formatDate = (ts) => {
+    return new Date(ts).toLocaleDateString("en", {month:"long", day:"numeric", year:"numeric"});
+  };
+
+  return (
+    <div style={{minHeight:"100vh", background:"linear-gradient(180deg,#1A0A05 0%,#2A0F08 40%,#1A0A05 100%)", paddingBottom:96}}>
+      <div style={{position:"relative", overflow:"hidden"}}>
+        <div style={{position:"absolute", top:-80, left:"50%", transform:"translateX(-50%)", width:400, height:400, borderRadius:"50%", background:"radial-gradient(circle,rgba(212,82,106,0.25) 0%,rgba(100,30,20,0.15) 50%,transparent 100%)", filter:"blur(50px)", pointerEvents:"none"}}/>
+
+        <div style={{padding:"22px 18px 0", position:"relative", zIndex:1}}>
+          <div style={{display:"flex", alignItems:"center", gap:12, marginBottom:26}}>
+            <button onClick={back} style={{background:"rgba(255,255,255,0.10)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:12, cursor:"pointer", padding:"9px 11px", lineHeight:1, display:"flex", alignItems:"center"}}>
+              <ArrowLeft size={20} color="rgba(255,255,255,0.7)"/>
+            </button>
+            <div style={{flex:1}}>
+              <h2 style={{fontFamily:PF, fontSize:22, fontWeight:400, fontStyle:"italic", color:"#FAF0E8"}}>Past Rounds</h2>
+              <div style={{fontSize:12, color:"rgba(250,240,232,0.5)", fontFamily:LT}}>{history.length} rounds together</div>
+            </div>
+            <div style={{background:"rgba(212,82,106,0.2)", border:"1px solid rgba(212,82,106,0.3)", borderRadius:20, padding:"5px 13px", display:"flex", alignItems:"center", gap:5}}>
+              <Fire size={12} color="#E8A080" weight="fill"/>
+              <span style={{fontSize:11, fontWeight:700, color:"#E8A080", fontFamily:LT}}>SPICY</span>
+            </div>
+          </div>
+
+          {history.length === 0 ? (
+            <div style={{textAlign:"center", padding:"60px 0"}}>
+              <div style={{fontSize:48, marginBottom:16}}>🔥</div>
+              <div style={{fontSize:15, color:"rgba(250,240,232,0.5)", fontFamily:LT}}>No past rounds yet — complete a round first.</div>
+            </div>
+          ) : (
+            <div style={{display:"flex", flexDirection:"column", gap:24, paddingBottom:40}}>
+              {[...history].reverse().map((round, i) => {
+                const cat = CATS[round.category] || {label:"Desire", emoji:"🔥"};
+                return (
+                  <div key={i}>
+                    {/* Date + category */}
+                    <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:10}}>
+                      <span style={{fontSize:16}}>{cat.emoji}</span>
+                      <div style={{fontSize:11, fontWeight:700, color:"rgba(250,240,232,0.4)", fontFamily:LT, textTransform:"uppercase", letterSpacing:"0.08em"}}>
+                        {cat.label} · {formatDate(round.savedAt)}
+                      </div>
+                    </div>
+
+                    {/* Prompt */}
+                    <div style={{background:"rgba(255,255,255,0.06)", backdropFilter:"blur(12px)", borderRadius:18, padding:"18px 20px", marginBottom:12, border:"1px solid rgba(255,255,255,0.08)"}}>
+                      <p style={{fontFamily:PF, fontSize:17, fontStyle:"italic", color:"#FAF0E8", lineHeight:1.65, margin:0}}>"{round.prompt}"</p>
+                    </div>
+
+                    {/* Both responses */}
+                    <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
+                      {[[userKey, me?.name, C.rose, C.roseSoft, C.roseBd], [pk, partner?.name, C.gold, C.goldSoft, C.goldBd]].map(([key, name, color, soft, bd]) => (
+                        <div key={key} style={{background:"rgba(255,255,255,0.95)", borderRadius:16, padding:"14px 14px", border:`1px solid ${bd}`}}>
+                          <div style={{fontSize:10, fontWeight:700, color, fontFamily:LT, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em"}}>{name}</div>
+                          <div style={{fontSize:13, color:C.text, fontFamily:PF, fontStyle:"italic", lineHeight:1.6}}>
+                            "{round.responses?.[key] || <i style={{color:C.muted}}>—</i>}"
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Divider */}
+                    {i < history.length - 1 && (
+                      <div style={{height:1, background:"rgba(255,255,255,0.06)", marginTop:24}}/>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
   const pk = userKey === "A" ? "B" : "A";
-  const fk = "desire"; // persistent key — not date-based, unlimited rounds
+  const fk = "desire";
   const desire = roomData?.[fk];
 
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState("");
   const [category, setCategory] = useState("random");
   const [teaseText, setTeaseText] = useState("");
-  const [localTeases, setLocalTeases] = useState([]); // optimistic local state
+  const [localTeases, setLocalTeases] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   const CATS = [
-    {key:"confess",  Icon:ChatTeardrop, label:"Confess",  desc:"Admit something bold",        emoji:"🫦"},
-    {key:"dare",     Icon:Fire,         label:"Dare",     desc:"Do something daring",          emoji:"🔥"},
-    {key:"question", Icon:Sparkle,      label:"Question", desc:"Answer something intimate",    emoji:"💋"},
-    {key:"fantasy",  Icon:Star,         label:"Fantasy",  desc:"Share a fantasy",              emoji:"🌙"},
+    {key:"confess",  Icon:ChatTeardrop, label:"Confess",  desc:"Admit something bold",     emoji:"🫦"},
+    {key:"dare",     Icon:Fire,         label:"Dare",     desc:"Do something daring",       emoji:"🔥"},
+    {key:"question", Icon:Sparkle,      label:"Question", desc:"Answer something intimate", emoji:"💋"},
+    {key:"fantasy",  Icon:Star,         label:"Fantasy",  desc:"Share a fantasy",           emoji:"🌙"},
   ];
 
   const REACTIONS = ["🍆","🍑","💦","🔥","😈","🫦","💋","🥵","😏","❤️‍🔥"];
@@ -3671,13 +3894,11 @@ function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
   const catInfo = CATS.find(c => c.key === desire?.category) || CATS[0];
   const CatIcon = catInfo.Icon;
 
-  // Reset local teases when a new round starts
   useEffect(() => {
     setLocalTeases([]);
     setResponse("");
   }, [desire?.startedAt]);
 
-  // Generate a new round
   const generate = async () => {
     setLoading(true);
     setLocalTeases([]);
@@ -3687,10 +3908,8 @@ function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
       : category;
     const prompt = getDesirePromptV2(cat);
     await update({[fk]: {
-      prompt,
-      category: cat,
-      responses: {},
-      revealed: false,
+      prompt, category: cat,
+      responses: {}, revealed: false,
       teases: [],
       roundCount: (desire?.roundCount || 0) + 1,
       startedAt: Date.now(),
@@ -3704,10 +3923,10 @@ function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
     await addN("desire", `${me?.name} responded to Desire 🔥`);
   };
 
-  // Optimistic tease — shows instantly, then syncs to Firestore
+  // Optimistic tease
   const sendTease = async (emoji) => {
     const tease = {from: userKey, emoji, ts: Date.now()};
-    setLocalTeases(prev => [...prev, tease]); // instant local update
+    setLocalTeases(prev => [...prev, tease]);
     const current = desire?.teases || [];
     await update({[`${fk}.teases`]: [...current, tease].slice(-30)});
   };
@@ -3715,7 +3934,7 @@ function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
   const sendTeaseText = async () => {
     if (!teaseText.trim()) return;
     const tease = {from: userKey, text: teaseText.trim(), ts: Date.now()};
-    setLocalTeases(prev => [...prev, tease]); // instant local update
+    setLocalTeases(prev => [...prev, tease]);
     const current = desire?.teases || [];
     await update({[`${fk}.teases`]: [...current, tease].slice(-30)});
     setTeaseText("");
@@ -3725,196 +3944,65 @@ function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
     await update({[`${fk}.revealed`]: true});
   };
 
+  // Save round to history before clearing
   const newRound = async () => {
+    if (desire?.revealed && desire?.responses?.[userKey] && desire?.responses?.[pk]) {
+      const historyEntry = {
+        prompt: desire.prompt,
+        category: desire.category,
+        responses: desire.responses,
+        savedAt: Date.now(),
+      };
+      const current = roomData?.desireHistory || [];
+      await update({
+        desireHistory: [...current, historyEntry].slice(-50), // keep last 50 rounds
+        [fk]: null,
+      });
+    } else {
+      await update({[fk]: null});
+    }
     setResponse("");
     setCategory("random");
     setLocalTeases([]);
-    await update({[fk]: null});
   };
 
-  // Merge Firestore teases + local optimistic teases, deduplicated by ts
-  const getMergedTeases = () => {
-    const firestoreTeases = desire?.teases || [];
-    const firestoreTs = new Set(firestoreTeases.map(t => t.ts));
-    // Only include local teases not yet confirmed by Firestore
-    const pendingLocal = localTeases.filter(t => !firestoreTs.has(t.ts));
-    return [...firestoreTeases, ...pendingLocal].sort((a, b) => a.ts - b.ts);
-  };
+  const historyCount = (roomData?.desireHistory || []).length;
 
-  // Tease live panel — used in respond and wait phases
-  const TeaseLive = () => {
-    const allTeases = getMergedTeases();
-    const partnerTeases = allTeases.filter(t => t.from !== userKey);
-    const latestPartnerTease = partnerTeases[partnerTeases.length - 1];
-    const myRecentTeases = allTeases.filter(t => t.from === userKey).slice(-3);
-
-    return (
-      <div style={{marginTop: 20}}>
-
-        {/* Partner's latest tease — shown prominently */}
-        {latestPartnerTease && (
-          <div className="fade-rise" style={{
-            background: "rgba(212,82,106,0.12)",
-            borderRadius: 16,
-            padding: "14px 18px",
-            marginBottom: 14,
-            border: "1px solid rgba(212,82,106,0.25)",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-          }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: "50%",
-              background: "linear-gradient(135deg,#8B2A1A,#C4522A)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#FAF0E8", fontFamily: LT,
-            }}>
-              {partner?.name?.[0]}
-            </div>
-            <div style={{flex: 1}}>
-              <div style={{fontSize: 10, color: "#E8A080", fontFamily: LT, fontWeight: 700, marginBottom: 4}}>
-                {partner?.name}
-              </div>
-              {latestPartnerTease.emoji
-                ? <div style={{fontSize: 28, lineHeight: 1}}>{latestPartnerTease.emoji}</div>
-                : <div style={{fontSize: 14, color: "#FAF0E8", fontFamily: PF, fontStyle: "italic", lineHeight: 1.5}}>
-                    "{latestPartnerTease.text}"
-                  </div>
-              }
-            </div>
-          </div>
-        )}
-
-        {/* My recent teases — shown dimly so they know it sent */}
-        {myRecentTeases.length > 0 && (
-          <div style={{display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12, justifyContent: "flex-end"}}>
-            {myRecentTeases.map((t, i) => (
-              <div key={i} style={{
-                background: "rgba(255,255,255,0.06)",
-                borderRadius: 10,
-                padding: t.emoji ? "6px 8px" : "6px 12px",
-                fontSize: t.emoji ? 18 : 12,
-                color: "rgba(250,240,232,0.5)",
-                fontFamily: LT,
-                fontStyle: t.text ? "italic" : "normal",
-                border: "1px solid rgba(255,255,255,0.06)",
-              }}>
-                {t.emoji || `"${t.text}"`}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Emoji reaction bar */}
-        <div style={{
-          background: "rgba(255,255,255,0.04)",
-          borderRadius: 18,
-          padding: "14px 12px",
-          border: "1px solid rgba(255,255,255,0.07)",
-          marginBottom: 12,
-        }}>
-          <div style={{fontSize: 10, color: "rgba(250,240,232,0.35)", fontFamily: LT, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10}}>
-            React while they think...
-          </div>
-          <div style={{display: "flex", gap: 6, flexWrap: "wrap"}}>
-            {REACTIONS.map(emoji => (
-              <button
-                key={emoji}
-                onClick={() => sendTease(emoji)}
-                style={{
-                  fontSize: 22,
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: 12,
-                  width: 44,
-                  height: 44,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "all 0.15s",
-                  flexShrink: 0,
-                }}
-                onMouseEnter={e => {e.currentTarget.style.background="rgba(212,82,106,0.25)"; e.currentTarget.style.transform="scale(1.15)";}}
-                onMouseLeave={e => {e.currentTarget.style.background="rgba(255,255,255,0.06)"; e.currentTarget.style.transform="scale(1)";}}
-                onTouchStart={e => e.currentTarget.style.transform="scale(1.15)"}
-                onTouchEnd={e => e.currentTarget.style.transform="scale(1)"}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Short text tease */}
-        <div style={{display: "flex", gap: 10}}>
-          <input
-            type="text"
-            value={teaseText}
-            onChange={e => setTeaseText(e.target.value)}
-            onKeyPress={e => e.key === "Enter" && sendTeaseText()}
-            placeholder="Say something cheeky..."
-            maxLength={60}
-            style={{
-              flex: 1,
-              background: "rgba(255,255,255,0.07)",
-              border: "1px solid rgba(255,255,255,0.10)",
-              borderRadius: 14,
-              padding: "12px 16px",
-              fontFamily: LT,
-              fontSize: 14,
-              color: "#FAF0E8",
-              outline: "none",
-            }}
-          />
-          <button
-            onClick={sendTeaseText}
-            disabled={!teaseText.trim()}
-            style={{
-              width: 48, height: 48,
-              borderRadius: 14,
-              background: teaseText.trim() ? "linear-gradient(135deg,#8B2A1A,#C4522A)" : "rgba(255,255,255,0.06)",
-              border: "none",
-              cursor: teaseText.trim() ? "pointer" : "not-allowed",
-              fontSize: 20,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-              transition: "all 0.2s",
-            }}
-          >
-            💋
-          </button>
-        </div>
-      </div>
-    );
-  };
+  // Show history screen
+  if (showHistory) {
+    return <DesireHistory me={me} partner={partner} userKey={userKey} roomData={roomData} back={() => setShowHistory(false)}/>;
+  }
 
   return (
-    <div style={{minHeight: "100vh", background: "linear-gradient(180deg,#1A0A05 0%,#2A0F08 40%,#1A0A05 100%)", paddingBottom: 96}}>
-      <div style={{position: "relative", overflow: "hidden"}}>
-        <div style={{position: "absolute", top: -80, left: "50%", transform: "translateX(-50%)", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle,rgba(212,82,106,0.25) 0%,rgba(100,30,20,0.15) 50%,transparent 100%)", filter: "blur(50px)", pointerEvents: "none"}}/>
+    <div style={{minHeight:"100vh", background:"linear-gradient(180deg,#1A0A05 0%,#2A0F08 40%,#1A0A05 100%)", paddingBottom:96}}>
+      <div style={{position:"relative", overflow:"hidden"}}>
+        <div style={{position:"absolute", top:-80, left:"50%", transform:"translateX(-50%)", width:400, height:400, borderRadius:"50%", background:"radial-gradient(circle,rgba(212,82,106,0.25) 0%,rgba(100,30,20,0.15) 50%,transparent 100%)", filter:"blur(50px)", pointerEvents:"none"}}/>
 
         {/* HEADER */}
-        <div style={{padding: "22px 18px 0", position: "relative", zIndex: 1}}>
-          <div style={{display: "flex", alignItems: "center", gap: 12, marginBottom: 26}}>
-            <button onClick={back} style={{background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 12, cursor: "pointer", padding: "9px 11px", lineHeight: 1, display: "flex", alignItems: "center"}}>
+        <div style={{padding:"22px 18px 0", position:"relative", zIndex:1}}>
+          <div style={{display:"flex", alignItems:"center", gap:12, marginBottom:26}}>
+            <button onClick={back} style={{background:"rgba(255,255,255,0.10)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:12, cursor:"pointer", padding:"9px 11px", lineHeight:1, display:"flex", alignItems:"center"}}>
               <ArrowLeft size={20} color="rgba(255,255,255,0.7)"/>
             </button>
-            <div style={{flex: 1}}>
-              <h2 style={{fontFamily: PF, fontSize: 22, fontWeight: 400, fontStyle: "italic", color: "#FAF0E8"}}>Desire</h2>
-              <div style={{fontSize: 12, color: "rgba(250,240,232,0.5)", fontFamily: LT}}>Bold. Daring. Just the two of you.</div>
+            <div style={{flex:1}}>
+              <h2 style={{fontFamily:PF, fontSize:22, fontWeight:400, fontStyle:"italic", color:"#FAF0E8"}}>Desire</h2>
+              <div style={{fontSize:12, color:"rgba(250,240,232,0.5)", fontFamily:LT}}>Bold. Daring. Just the two of you.</div>
             </div>
-            <div style={{display: "flex", alignItems: "center", gap: 8}}>
+            <div style={{display:"flex", alignItems:"center", gap:8}}>
+              {/* Past rounds button */}
+              {historyCount > 0 && (
+                <button onClick={() => setShowHistory(true)} style={{background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:20, padding:"5px 12px", cursor:"pointer", fontFamily:LT, fontSize:11, fontWeight:700, color:"rgba(250,240,232,0.6)", display:"flex", alignItems:"center", gap:5}}>
+                  <Fire size={11} color="#E8A080"/> {historyCount} past
+                </button>
+              )}
               {(desire?.roundCount || 0) > 0 && (
-                <div style={{background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 20, padding: "4px 10px", fontSize: 11, color: "rgba(250,240,232,0.45)", fontFamily: LT}}>
+                <div style={{background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.10)", borderRadius:20, padding:"4px 10px", fontSize:11, color:"rgba(250,240,232,0.45)", fontFamily:LT}}>
                   Round {desire.roundCount}
                 </div>
               )}
-              <div style={{background: "rgba(212,82,106,0.2)", border: "1px solid rgba(212,82,106,0.3)", borderRadius: 20, padding: "5px 13px", display: "flex", alignItems: "center", gap: 5}}>
+              <div style={{background:"rgba(212,82,106,0.2)", border:"1px solid rgba(212,82,106,0.3)", borderRadius:20, padding:"5px 13px", display:"flex", alignItems:"center", gap:5}}>
                 <Fire size={12} color="#E8A080" weight="fill"/>
-                <span style={{fontSize: 11, fontWeight: 700, color: "#E8A080", fontFamily: LT}}>SPICY</span>
+                <span style={{fontSize:11, fontWeight:700, color:"#E8A080", fontFamily:LT}}>SPICY</span>
               </div>
             </div>
           </div>
@@ -3922,33 +4010,35 @@ function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
 
         {/* PHASE: GEN */}
         {phase === "gen" && (
-          <div style={{padding: "0 18px", position: "relative", zIndex: 1}} className="fade-rise">
-            <div style={{textAlign: "center", paddingTop: 12, marginBottom: 36}}>
-              <div style={{position: "relative", display: "inline-block", marginBottom: 24}}>
-                <div style={{position: "absolute", inset: -20, borderRadius: "50%", border: "1px solid rgba(212,82,106,0.3)", animation: "hbRing1 2.5s ease-out infinite"}}/>
-                <div style={{position: "absolute", inset: -36, borderRadius: "50%", border: "1px solid rgba(212,82,106,0.15)", animation: "hbRing2 2.5s ease-out infinite 0.6s"}}/>
-                <div style={{width: 100, height: 100, borderRadius: "50%", background: "linear-gradient(135deg,#8B2A1A,#2A0F08)", display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 20px 60px rgba(212,82,106,0.4)"}}>
+          <div style={{padding:"0 18px", position:"relative", zIndex:1}} className="fade-rise">
+            <div style={{textAlign:"center", paddingTop:12, marginBottom:36}}>
+              <div style={{position:"relative", display:"inline-block", marginBottom:24}}>
+                <div style={{position:"absolute", inset:-20, borderRadius:"50%", border:"1px solid rgba(212,82,106,0.3)", animation:"hbRing1 2.5s ease-out infinite"}}/>
+                <div style={{position:"absolute", inset:-36, borderRadius:"50%", border:"1px solid rgba(212,82,106,0.15)", animation:"hbRing2 2.5s ease-out infinite 0.6s"}}/>
+                <div style={{width:100, height:100, borderRadius:"50%", background:"linear-gradient(135deg,#8B2A1A,#2A0F08)", display:"inline-flex", alignItems:"center", justifyContent:"center", boxShadow:"0 20px 60px rgba(212,82,106,0.4)"}}>
                   <Fire size={48} color="#E8A080" weight="fill"/>
                 </div>
               </div>
-              <h3 style={{fontFamily: PF, fontSize: 26, fontStyle: "italic", fontWeight: 400, color: "#FAF0E8", marginBottom: 10}}>Push each other's limits</h3>
-              <p style={{color: "rgba(250,240,232,0.55)", fontSize: 15, lineHeight: 1.75, fontFamily: LT}}>Bold prompts. Honest answers.<br/>Just the two of you.</p>
+              <h3 style={{fontFamily:PF, fontSize:26, fontStyle:"italic", fontWeight:400, color:"#FAF0E8", marginBottom:10}}>Push each other's limits</h3>
+              <p style={{color:"rgba(250,240,232,0.55)", fontSize:15, lineHeight:1.75, fontFamily:LT}}>Bold prompts. Honest answers.<br/>Just the two of you.</p>
             </div>
 
-            <div style={{marginBottom: 24}}>
-              <div style={{fontSize: 11, fontWeight: 700, color: "rgba(250,240,232,0.4)", textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12, fontFamily: LT}}>Choose a category</div>
-              <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10}}>
-                <button onClick={() => setCategory("random")} className="card-hover" style={{padding: "18px 12px", borderRadius: 20, border: `2px solid ${category === "random" ? "rgba(212,82,106,0.6)" : "rgba(255,255,255,0.10)"}`, background: category === "random" ? "rgba(212,82,106,0.15)" : "rgba(255,255,255,0.05)", cursor: "pointer", fontFamily: LT, textAlign: "center"}}>
-                  <div style={{fontSize: 28, marginBottom: 8}}>🎲</div>
-                  <div style={{fontSize: 13, fontWeight: 700, color: category === "random" ? "#E8A080" : "rgba(255,255,255,0.5)"}}>Surprise me</div>
+            <div style={{marginBottom:24}}>
+              <div style={{fontSize:11, fontWeight:700, color:"rgba(250,240,232,0.4)", textTransform:"uppercase", letterSpacing:"0.09em", marginBottom:12, fontFamily:LT}}>Choose a category</div>
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
+                <button onClick={() => setCategory("random")} className="card-hover"
+                  style={{padding:"18px 12px", borderRadius:20, border:`2px solid ${category==="random"?"rgba(212,82,106,0.6)":"rgba(255,255,255,0.10)"}`, background:category==="random"?"rgba(212,82,106,0.15)":"rgba(255,255,255,0.05)", cursor:"pointer", fontFamily:LT, textAlign:"center"}}>
+                  <div style={{fontSize:28, marginBottom:8}}>🎲</div>
+                  <div style={{fontSize:13, fontWeight:700, color:category==="random"?"#E8A080":"rgba(255,255,255,0.5)"}}>Surprise me</div>
                 </button>
                 {CATS.map(cat => {
                   const CI = cat.Icon;
                   return (
-                    <button key={cat.key} onClick={() => setCategory(cat.key)} className="card-hover" style={{padding: "18px 12px", borderRadius: 20, border: `2px solid ${category === cat.key ? "rgba(212,82,106,0.6)" : "rgba(255,255,255,0.10)"}`, background: category === cat.key ? "rgba(212,82,106,0.15)" : "rgba(255,255,255,0.05)", cursor: "pointer", fontFamily: LT, textAlign: "center"}}>
-                      <div style={{fontSize: 28, marginBottom: 8}}>{cat.emoji}</div>
-                      <div style={{fontSize: 13, fontWeight: 700, color: category === cat.key ? "#E8A080" : "rgba(255,255,255,0.5)"}}>{cat.label}</div>
-                      <div style={{fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 3, fontFamily: LT}}>{cat.desc}</div>
+                    <button key={cat.key} onClick={() => setCategory(cat.key)} className="card-hover"
+                      style={{padding:"18px 12px", borderRadius:20, border:`2px solid ${category===cat.key?"rgba(212,82,106,0.6)":"rgba(255,255,255,0.10)"}`, background:category===cat.key?"rgba(212,82,106,0.15)":"rgba(255,255,255,0.05)", cursor:"pointer", fontFamily:LT, textAlign:"center"}}>
+                      <div style={{fontSize:28, marginBottom:8}}>{cat.emoji}</div>
+                      <div style={{fontSize:13, fontWeight:700, color:category===cat.key?"#E8A080":"rgba(255,255,255,0.5)"}}>{cat.label}</div>
+                      <div style={{fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:3, fontFamily:LT}}>{cat.desc}</div>
                     </button>
                   );
                 })}
@@ -3956,87 +4046,98 @@ function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
             </div>
 
             {loading
-              ? <div style={{textAlign: "center", padding: "36px 0"}}><div className="hb-spin" style={{display: "inline-block", marginBottom: 14}}><Fire size={32} color="#E8A080"/></div><div style={{fontSize: 14, color: "rgba(250,240,232,0.5)", fontFamily: LT}}>Generating your prompt...</div></div>
-              : <button onClick={generate} className="card-hover" style={{display: "block", width: "100%", borderRadius: 18, padding: "15px 24px", fontFamily: LT, fontSize: 15, fontWeight: 700, background: "linear-gradient(135deg,#8B2A1A,#C4522A)", color: "#FAF0E8", border: "none", cursor: "pointer", boxShadow: "0 8px 24px rgba(212,82,106,0.35)"}}>
+              ? <div style={{textAlign:"center", padding:"36px 0"}}><div className="hb-spin" style={{display:"inline-block", marginBottom:14}}><Fire size={32} color="#E8A080"/></div><div style={{fontSize:14, color:"rgba(250,240,232,0.5)", fontFamily:LT}}>Generating your prompt...</div></div>
+              : <button onClick={generate} className="card-hover" style={{display:"block", width:"100%", borderRadius:18, padding:"15px 24px", fontFamily:LT, fontSize:15, fontWeight:700, background:"linear-gradient(135deg,#8B2A1A,#C4522A)", color:"#FAF0E8", border:"none", cursor:"pointer", boxShadow:"0 8px 24px rgba(212,82,106,0.35)"}}>
                   Generate prompt 🔥
                 </button>
             }
           </div>
         )}
 
-        {/* PROMPT CARD — shown in all non-gen phases */}
+        {/* PROMPT CARD — all non-gen phases */}
         {phase !== "gen" && desire?.prompt && (
-          <div style={{padding: "0 18px", position: "relative", zIndex: 1}}>
-            <div style={{background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", borderRadius: 22, padding: 28, marginBottom: 20, textAlign: "center", border: "1px solid rgba(255,255,255,0.10)"}}>
-              <div style={{display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#E8A080", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16, fontFamily: LT}}>
-                <span style={{fontSize: 16}}>{catInfo.emoji}</span> {catInfo.label}
+          <div style={{padding:"0 18px", position:"relative", zIndex:1}}>
+            <div style={{background:"rgba(255,255,255,0.06)", backdropFilter:"blur(12px)", borderRadius:22, padding:28, marginBottom:20, textAlign:"center", border:"1px solid rgba(255,255,255,0.10)"}}>
+              <div style={{display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, fontWeight:700, color:"#E8A080", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:16, fontFamily:LT}}>
+                <span style={{fontSize:16}}>{catInfo.emoji}</span> {catInfo.label}
               </div>
-              <p style={{fontFamily: PF, fontSize: 20, fontStyle: "italic", color: "#FAF0E8", lineHeight: 1.65, margin: 0}}>{desire.prompt}</p>
+              <p style={{fontFamily:PF, fontSize:20, fontStyle:"italic", color:"#FAF0E8", lineHeight:1.65, margin:0}}>{desire.prompt}</p>
             </div>
           </div>
         )}
 
         {/* PHASE: RESPOND */}
         {phase === "respond" && (
-          <div style={{padding: "0 18px", position: "relative", zIndex: 1}} className="fade-rise">
-            <div style={{background: "rgba(255,255,255,0.96)", borderRadius: 20, padding: 22, marginBottom: 16, boxShadow: SHADOWS.xl}}>
-              <Field
-                textarea
-                label={`Your response, ${me?.name}`}
-                value={response}
-                onChange={e => setResponse(e.target.value)}
-                placeholder="Be honest. Be bold."
-              />
-              <button onClick={submitResponse} disabled={!response.trim()} className="card-hover" style={{display: "block", width: "100%", borderRadius: 18, padding: "15px 24px", fontFamily: LT, fontSize: 15, fontWeight: 700, background: "linear-gradient(135deg,#8B2A1A,#C4522A)", color: "#FAF0E8", border: "none", cursor: response.trim() ? "pointer" : "not-allowed", opacity: response.trim() ? 1 : 0.45, boxShadow: "0 8px 24px rgba(212,82,106,0.35)"}}>
+          <div style={{padding:"0 18px", position:"relative", zIndex:1}} className="fade-rise">
+            <div style={{background:"rgba(255,255,255,0.96)", borderRadius:20, padding:22, marginBottom:16, boxShadow:SHADOWS.xl}}>
+              <Field textarea label={`Your response, ${me?.name}`} value={response} onChange={e => setResponse(e.target.value)} placeholder="Be honest. Be bold."/>
+              <button onClick={submitResponse} disabled={!response.trim()} className="card-hover"
+                style={{display:"block", width:"100%", borderRadius:18, padding:"15px 24px", fontFamily:LT, fontSize:15, fontWeight:700, background:"linear-gradient(135deg,#8B2A1A,#C4522A)", color:"#FAF0E8", border:"none", cursor:response.trim()?"pointer":"not-allowed", opacity:response.trim()?1:0.45, boxShadow:"0 8px 24px rgba(212,82,106,0.35)"}}>
                 Lock in my response →
               </button>
             </div>
-            <p style={{textAlign: "center", fontSize: 12, color: "rgba(250,240,232,0.4)", fontFamily: LT, marginBottom: 0}}>Hidden until your partner responds</p>
-            <TeaseLive/>
+            <p style={{textAlign:"center", fontSize:12, color:"rgba(250,240,232,0.4)", fontFamily:LT, marginBottom:0}}>Hidden until your partner responds</p>
+            <TeaseLiveDesire
+              userKey={userKey} partner={partner}
+              firestoreTeases={desire?.teases || []}
+              localTeases={localTeases}
+              sendTease={sendTease}
+              sendTeaseText={sendTeaseText}
+              teaseText={teaseText}
+              setTeaseText={setTeaseText}
+            />
           </div>
         )}
 
         {/* PHASE: WAIT */}
         {phase === "wait" && (
-          <div style={{padding: "0 18px", position: "relative", zIndex: 1}} className="fade-rise">
-            <div style={{background: "rgba(255,255,255,0.96)", borderRadius: 20, padding: 22, marginBottom: 14, boxShadow: SHADOWS.xl}}>
-              <div style={{fontSize: 11, fontWeight: 700, color: C.rose, marginBottom: 8, fontFamily: LT, display: "flex", alignItems: "center", gap: 5}}>
+          <div style={{padding:"0 18px", position:"relative", zIndex:1}} className="fade-rise">
+            <div style={{background:"rgba(255,255,255,0.96)", borderRadius:20, padding:22, marginBottom:14, boxShadow:SHADOWS.xl}}>
+              <div style={{fontSize:11, fontWeight:700, color:C.rose, marginBottom:8, fontFamily:LT, display:"flex", alignItems:"center", gap:5}}>
                 <CheckCircle size={14} color={C.rose} weight="fill"/> Your response is locked in
               </div>
-              <div style={{fontSize: 15, color: C.text, fontFamily: LT, lineHeight: 1.6}}>{desire?.responses?.[userKey]}</div>
+              <div style={{fontSize:15, color:C.text, fontFamily:LT, lineHeight:1.6}}>{desire?.responses?.[userKey]}</div>
             </div>
-            <div style={{background: "rgba(255,255,255,0.07)", borderRadius: 14, padding: 14, textAlign: "center", fontSize: 13, color: "rgba(250,240,232,0.5)", fontFamily: LT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 0}}>
+            <div style={{background:"rgba(255,255,255,0.07)", borderRadius:14, padding:14, textAlign:"center", fontSize:13, color:"rgba(250,240,232,0.5)", fontFamily:LT, display:"flex", alignItems:"center", justifyContent:"center", gap:6, marginBottom:0}}>
               <Sparkle size={14} color="rgba(250,240,232,0.5)"/> Waiting for {partner?.name}...
             </div>
-            <TeaseLive/>
+            <TeaseLiveDesire
+              userKey={userKey} partner={partner}
+              firestoreTeases={desire?.teases || []}
+              localTeases={localTeases}
+              sendTease={sendTease}
+              sendTeaseText={sendTeaseText}
+              teaseText={teaseText}
+              setTeaseText={setTeaseText}
+            />
           </div>
         )}
 
         {/* PHASE: REVEAL */}
         {phase === "reveal" && (
-          <div style={{padding: "0 18px", position: "relative", zIndex: 1, textAlign: "center"}} className="fade-rise">
-            <div style={{paddingTop: 8, paddingBottom: 32}}>
-              <div style={{position: "relative", display: "inline-block", marginBottom: 20}}>
-                <div style={{position: "absolute", inset: -20, borderRadius: "50%", border: "1px solid rgba(212,82,106,0.3)", animation: "hbRing1 2.5s ease-out infinite"}}/>
-                <div style={{width: 80, height: 80, borderRadius: "50%", background: "linear-gradient(135deg,#8B2A1A,#C4522A)", display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 40px rgba(212,82,106,0.5)"}}>
+          <div style={{padding:"0 18px", position:"relative", zIndex:1, textAlign:"center"}} className="fade-rise">
+            <div style={{paddingTop:8, paddingBottom:32}}>
+              <div style={{position:"relative", display:"inline-block", marginBottom:20}}>
+                <div style={{position:"absolute", inset:-20, borderRadius:"50%", border:"1px solid rgba(212,82,106,0.3)", animation:"hbRing1 2.5s ease-out infinite"}}/>
+                <div style={{width:80, height:80, borderRadius:"50%", background:"linear-gradient(135deg,#8B2A1A,#C4522A)", display:"inline-flex", alignItems:"center", justifyContent:"center", boxShadow:"0 12px 40px rgba(212,82,106,0.5)"}}>
                   <Fire size={40} color="#FAF0E8" weight="fill"/>
                 </div>
               </div>
-              <p style={{fontFamily: PF, fontSize: 22, fontStyle: "italic", color: "#FAF0E8", marginBottom: 8}}>Both of you have responded.</p>
-              <p style={{fontSize: 14, color: "rgba(250,240,232,0.5)", fontFamily: LT, marginBottom: 24}}>Open this together. Read at the same time.</p>
+              <p style={{fontFamily:PF, fontSize:22, fontStyle:"italic", color:"#FAF0E8", marginBottom:8}}>Both of you have responded.</p>
+              <p style={{fontSize:14, color:"rgba(250,240,232,0.5)", fontFamily:LT, marginBottom:24}}>Open this together. Read at the same time.</p>
 
-              {/* Tease recap before reveal */}
-              {getMergedTeases().length > 0 && (
-                <div style={{marginBottom: 24, textAlign: "left"}}>
-                  <div style={{fontSize: 11, color: "rgba(250,240,232,0.35)", fontFamily: LT, marginBottom: 10, textAlign: "center"}}>While you were thinking...</div>
-                  <div style={{display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center"}}>
-                    {getMergedTeases().map((t, i) => (
-                      <div key={i} style={{background: "rgba(255,255,255,0.07)", borderRadius: 12, padding: t.emoji ? "8px 10px" : "7px 12px", border: "1px solid rgba(255,255,255,0.08)"}}>
+              {/* Tease recap */}
+              {(desire?.teases || []).length > 0 && (
+                <div style={{marginBottom:24}}>
+                  <div style={{fontSize:11, color:"rgba(250,240,232,0.35)", fontFamily:LT, marginBottom:10}}>While you were thinking...</div>
+                  <div style={{display:"flex", flexWrap:"wrap", gap:8, justifyContent:"center"}}>
+                    {desire.teases.map((t, i) => (
+                      <div key={i} style={{background:"rgba(255,255,255,0.07)", borderRadius:12, padding:t.emoji?"8px 10px":"7px 12px", border:"1px solid rgba(255,255,255,0.08)"}}>
                         {t.emoji
-                          ? <span style={{fontSize: 22}}>{t.emoji}</span>
-                          : <span style={{fontSize: 12, color: "rgba(250,240,232,0.7)", fontFamily: LT, fontStyle: "italic"}}>"{t.text}"</span>
+                          ? <span style={{fontSize:22}}>{t.emoji}</span>
+                          : <span style={{fontSize:12, color:"rgba(250,240,232,0.7)", fontFamily:LT, fontStyle:"italic"}}>"{t.text}"</span>
                         }
-                        <span style={{fontSize: 9, color: "rgba(250,240,232,0.3)", marginLeft: 6, fontFamily: LT}}>
+                        <span style={{fontSize:9, color:"rgba(250,240,232,0.3)", marginLeft:6, fontFamily:LT}}>
                           {t.from === userKey ? me?.name : partner?.name}
                         </span>
                       </div>
@@ -4045,7 +4146,8 @@ function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
                 </div>
               )}
 
-              <button onClick={reveal} className="card-hover" style={{display: "block", width: "100%", borderRadius: 18, padding: "15px 24px", fontFamily: LT, fontSize: 15, fontWeight: 700, background: "linear-gradient(135deg,#8B2A1A,#C4522A)", color: "#FAF0E8", border: "none", cursor: "pointer", boxShadow: "0 12px 36px rgba(212,82,106,0.45)"}}>
+              <button onClick={reveal} className="card-hover"
+                style={{display:"block", width:"100%", borderRadius:18, padding:"15px 24px", fontFamily:LT, fontSize:15, fontWeight:700, background:"linear-gradient(135deg,#8B2A1A,#C4522A)", color:"#FAF0E8", border:"none", cursor:"pointer", boxShadow:"0 12px 36px rgba(212,82,106,0.45)"}}>
                 Reveal together 🔥
               </button>
             </div>
@@ -4054,22 +4156,23 @@ function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
 
         {/* PHASE: RESULT */}
         {phase === "result" && (
-          <div style={{padding: "0 18px", position: "relative", zIndex: 1}} className="fade-rise">
+          <div style={{padding:"0 18px", position:"relative", zIndex:1}} className="fade-rise">
             {[[userKey, me?.name, C.rose, C.roseSoft, C.roseBd], [pk, partner?.name, C.gold, C.goldSoft, C.goldBd]].map(([key, name, color, soft, bd]) => (
-              <Card key={key} elevated gradient={`linear-gradient(135deg,rgba(255,255,255,0.99),${soft})`} style={{marginBottom: 14, border: `1px solid ${bd}`}}>
-                <div style={{fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12, fontFamily: LT}}>{name}</div>
-                <p style={{fontFamily: PF, fontSize: 18, fontStyle: "italic", color: C.text, lineHeight: 1.65, margin: 0}}>
-                  "{desire.responses?.[key] || <i style={{color: C.muted}}>Not answered yet</i>}"
+              <Card key={key} elevated gradient={`linear-gradient(135deg,rgba(255,255,255,0.99),${soft})`} style={{marginBottom:14, border:`1px solid ${bd}`}}>
+                <div style={{fontSize:11, fontWeight:700, color, textTransform:"uppercase", letterSpacing:"0.09em", marginBottom:12, fontFamily:LT}}>{name}</div>
+                <p style={{fontFamily:PF, fontSize:18, fontStyle:"italic", color:C.text, lineHeight:1.65, margin:0}}>
+                  "{desire.responses?.[key] || <i style={{color:C.muted}}>Not answered yet</i>}"
                 </p>
               </Card>
             ))}
 
             {/* React to the reveal */}
-            <div style={{background: "rgba(255,255,255,0.06)", borderRadius: 18, padding: "14px 16px", marginBottom: 16, border: "1px solid rgba(255,255,255,0.08)"}}>
-              <div style={{fontSize: 10, color: "rgba(250,240,232,0.35)", fontFamily: LT, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10}}>React to what they said</div>
-              <div style={{display: "flex", gap: 6, flexWrap: "wrap"}}>
+            <div style={{background:"rgba(255,255,255,0.06)", borderRadius:18, padding:"14px 16px", marginBottom:16, border:"1px solid rgba(255,255,255,0.08)"}}>
+              <div style={{fontSize:10, color:"rgba(250,240,232,0.35)", fontFamily:LT, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:10}}>React to what they said</div>
+              <div style={{display:"flex", gap:6, flexWrap:"wrap"}}>
                 {REACTIONS.map(emoji => (
-                  <button key={emoji} onClick={() => sendTease(emoji)} style={{fontSize: 22, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, width: 42, height: 42, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s"}}
+                  <button key={emoji} onClick={() => sendTease(emoji)}
+                    style={{fontSize:22, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, width:42, height:42, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s"}}
                     onMouseEnter={e => e.currentTarget.style.transform="scale(1.15)"}
                     onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}>
                     {emoji}
@@ -4078,9 +4181,18 @@ function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
               </div>
             </div>
 
-            <button onClick={newRound} className="card-hover" style={{display: "block", width: "100%", borderRadius: 18, padding: "15px 24px", fontFamily: LT, fontSize: 15, fontWeight: 700, background: "linear-gradient(135deg,#8B2A1A,#C4522A)", color: "#FAF0E8", border: "none", cursor: "pointer", boxShadow: "0 8px 24px rgba(212,82,106,0.35)", marginBottom: 10}}>
+            <button onClick={newRound} className="card-hover"
+              style={{display:"block", width:"100%", borderRadius:18, padding:"15px 24px", fontFamily:LT, fontSize:15, fontWeight:700, background:"linear-gradient(135deg,#8B2A1A,#C4522A)", color:"#FAF0E8", border:"none", cursor:"pointer", boxShadow:"0 8px 24px rgba(212,82,106,0.35)", marginBottom:10}}>
               Next round 🔥
             </button>
+
+            {historyCount > 0 && (
+              <button onClick={() => setShowHistory(true)}
+                style={{display:"block", width:"100%", borderRadius:18, padding:"12px 24px", fontFamily:LT, fontSize:14, fontWeight:700, background:"rgba(255,255,255,0.08)", color:"rgba(250,240,232,0.7)", border:"1px solid rgba(255,255,255,0.10)", cursor:"pointer", marginBottom:10}}>
+                See past rounds →
+              </button>
+            )}
+
             <Btn variant="ghost" onClick={back}>Back</Btn>
           </div>
         )}
