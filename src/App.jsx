@@ -2974,55 +2974,635 @@ function MemoryJar({me,userKey,roomData,update,addN,back}){
     </ScreenWrap>
   );
 }
+const DESIRE_PROMPTS_V2 = {
+  confess: [
+    "Confess something you've thought about doing with me that you've never said out loud",
+    "Admit the last time you thought about me in a way that surprised even you",
+    "Confess what you think about when you miss me physically",
+    "Admit something you find irresistible about me that you've never told me",
+    "Confess what you were really thinking the first time you saw me",
+    "Admit the most honest thing you feel for me right now, unfiltered",
+    "Confess something you want but haven't known how to ask for",
+    "Admit what our last intimate moment felt like from your side",
+    "Confess the moment you knew you were completely falling for me",
+    "Admit something about how I make you feel that only happens with me",
+    "Confess what you think about in the quiet moments before you fall asleep",
+    "Admit one thing you love about being with me that you've never said aloud",
+    "Confess the most vulnerable thought you've had about us",
+    "Admit what you were feeling the last time we said goodbye",
+    "Confess something about desire that you've never admitted to anyone",
+    "Admit the thing about me that you find hardest to resist",
+    "Confess what you'd want to happen the next time we're together",
+    "Admit something you want me to know about how much you want this",
+    "Confess the most honest version of how you feel right now",
+    "Admit what you'd do if you could have one uninterrupted hour with me",
+    "Confess a thought you had about me today that made you blush",
+    "Admit what you would have done differently the last time we were together",
+    "Confess what part of me you think about most when we're apart",
+    "Admit a desire you've been sitting on for weeks",
+    "Confess the last dream you had about me",
+    "Admit what my voice does to you",
+    "Confess what you'd whisper to me if I were right next to you",
+    "Admit the thing you want me to do that you're too shy to ask for directly",
+    "Confess what turns you on that you've never told anyone",
+    "Admit how long you've wanted to tell me that",
+    "Confess the thought you always push away but keeps coming back",
+    "Admit what you imagine when you close your eyes and think of me",
+    "Confess what you'd want me to say to you right now",
+    "Admit the most selfish desire you have about me",
+    "Confess what being wanted by me feels like",
+    "Admit something bold about what you need from me",
+    "Confess what you'd do to me if you had all night and no consequences",
+    "Admit the last thing you thought about me before you fell asleep",
+    "Confess how often you think about me in that way",
+    "Admit what you want more of between us that you've never said",
+  ],
+  dare: [
+    "Send a voice note of you saying exactly what you want from me tonight",
+    "Send a message that you'd only ever be brave enough to send me",
+    "Describe in a voice note what you want the first hour of seeing me again to look like",
+    "Send me the most honest message about how much you want me",
+    "Record a voice note saying one thing you've been holding back",
+    "Send me a message that makes me feel completely wanted",
+    "Describe in detail what your ideal night with me looks and feels like",
+    "Send a voice note of you saying my name the way you say it when you miss me",
+    "Send me a message that tells me exactly what you need right now",
+    "Record yourself saying the most vulnerable thing you feel for me",
+    "Send me a message I could read on a hard day to feel desired",
+    "Describe what it feels like when we're close in a voice note",
+    "Send me a message saying one bold thing you've been thinking",
+    "Record a voice note being completely unfiltered about what you want",
+    "Send me something that captures exactly how you feel about me tonight",
+    "Describe our next time together in as much detail as you can",
+    "Send a voice note saying everything you'd say if I was right beside you",
+    "Send me a message saying one thing about physical connection you want more of",
+    "Record yourself saying the most honest thing about desire",
+    "Send me the message you'd want to receive from me right now",
+    "Send a voice note of you saying one thing you've never had the courage to say",
+    "Text me exactly what you want to do to me",
+    "Send me a voice note of you being completely unguarded",
+    "Describe where you'd take me if you had one night and no limits",
+    "Send a voice note saying the thing that always stays in your head unsaid",
+    "Text me one thing you want me to do to you",
+    "Send a message as if nobody would ever read it except me",
+    "Voice note: say what your body feels when you think of mine",
+    "Send the most honest sentence about what you want from us",
+    "Record yourself reading the boldest thing you've ever thought about me",
+    "Text me what you'd want our morning to look like if I was there now",
+    "Send a voice note of you saying I love you in the way you mean it most",
+    "Describe the most intimate version of an evening between us",
+    "Send me three words that describe what you want right now",
+    "Voice note: talk about the last time you felt completely desired",
+    "Text me something you've thought about every day this week",
+    "Send me a voice note that you'd be embarrassed for anyone else to hear",
+    "Describe what my touch does to you",
+    "Send a message saying what you'd do if I walked in the door right now",
+    "Record yourself saying one deeply honest thing about wanting me",
+  ],
+  question: [
+    "What's the most honest thing you can say about how much you want me?",
+    "What do you think about when the distance between us feels hardest?",
+    "What's the most vulnerable you've ever felt with someone?",
+    "What would you want the first moment of seeing me again to feel like?",
+    "What's something about physical intimacy you've always wanted to explore?",
+    "What does desire feel like in your body?",
+    "What's the most honest version of what you need from a relationship?",
+    "What's something about the way I love you that you didn't know you needed?",
+    "What would you do if you had one uninterrupted hour with me?",
+    "What does being completely wanted feel like?",
+    "What's the most honest thought you have about us late at night?",
+    "What's a version of us together that you think about and haven't told me?",
+    "What makes you feel most like yourself when we're together?",
+    "What do you feel in the moment before I kiss you?",
+    "What's the thing about our intimacy you want more of?",
+    "What would change between us if we said everything we were thinking?",
+    "What does it feel like to be seen completely by someone?",
+    "What's the most tender thing you feel for me right now?",
+    "What's something about desire that only makes sense with you?",
+    "What do you want me to know about how you feel when we're close?",
+    "What's one thing about your body you wish I knew?",
+    "What would you want me to whisper to you right now?",
+    "What part of being with me do you replay most often?",
+    "What's a fantasy you've been keeping to yourself?",
+    "What do you need that you've never asked for?",
+    "What does it feel like when I look at you?",
+    "What's the thing I do that undoes you completely?",
+    "What's a side of yourself that only comes out with me?",
+    "What's one thing about our physical connection that surprised you?",
+    "What would you want our last night together to feel like if we had no tomorrow?",
+    "What's something about being with me that you think about when you're alone?",
+    "What does it mean to you when I say I want you?",
+    "What's the most intimate moment we've had?",
+    "What do you want more of that you're afraid to ask for?",
+    "What does your body feel like when I touch you?",
+    "What's the most honest thing about how much you miss me?",
+    "What would you want to feel with me that you haven't yet?",
+    "What's a thought about us that you've never said out loud?",
+    "What does wanting me feel like for you?",
+    "What's one thing you could tell me right now that would change everything?",
+  ],
+  fantasy: [
+    "Describe a fantasy you have about us that you've never said out loud",
+    "Describe what your ideal intimate evening with me looks like in detail",
+    "Describe a place you'd want us to be together that you think about",
+    "Describe a scenario with me that you'd want to make real",
+    "Describe what you imagine the first night of living together being like",
+    "Describe a fantasy about us in a specific location",
+    "Describe what you'd want to happen the moment I walk through the door",
+    "Describe the most romantic version of a night between us",
+    "Describe a fantasy about the two of us on a trip together",
+    "Describe what you imagine our mornings together being like",
+    "Describe a moment between us you want to create",
+    "Describe your ideal version of a weekend alone with me",
+    "Describe a fantasy about what our future home feels like",
+    "Describe the most intimate version of a quiet evening with me",
+    "Describe something you've imagined us doing that you haven't said",
+    "Describe what you'd want a perfect spontaneous night with me to look like",
+    "Describe a fantasy about being completely alone with me somewhere new",
+    "Describe what you imagine the first time we wake up together with no plans",
+    "Describe a version of us in five years that you dream about",
+    "Describe what you'd want our most intimate conversation to sound like",
+    "Describe the perfect setting for us — where, when, how it begins",
+    "Describe a fantasy that starts with us doing something completely ordinary",
+    "Describe what you'd want me to do to you if time stopped",
+    "Describe the version of us you most want to exist",
+    "Describe a fantasy that involves just one room and all the time in the world",
+    "Describe what the best version of our physical connection looks like",
+    "Describe what you'd want our first night together after a long time apart to feel like",
+    "Describe the dream trip we'd take just to be alone together",
+    "Describe a fantasy version of tomorrow morning with me",
+    "Describe the one scenario you keep returning to when you think of us",
+    "Describe what you'd want me to do without me asking",
+    "Describe the most sensory version of being with me you can imagine",
+    "Describe a fantasy where we have absolutely no inhibitions",
+    "Describe what it would feel like to have me completely to yourself",
+    "Describe our best night ever — the one that hasn't happened yet",
+    "Describe a fantasy involving a specific place you've always wanted to take me",
+    "Describe what you want the energy between us to feel like",
+    "Describe a version of intimacy between us you've thought about but never said",
+    "Describe the fantasy you'd most want to come true this year",
+    "Describe what forever looks like in your most honest imagination",
+  ],
+};
 
-function DesireGame({me,partner,userKey,roomData,update,addN,back}){
-  const pk=userKey==="A"?"B":"A"; const fk=`desire_${todayKey()}`; const desire=roomData?.[fk]; const [loading,setLoading]=useState(false); const [response,setResponse]=useState(desire?.responses?.[userKey]||""); const [category,setCategory]=useState("random");
-  const CATS=[{key:"confess",Icon:ChatTeardrop,label:"Confess",desc:"Admit something bold"},{key:"dare",Icon:Fire,label:"Dare",desc:"Do something daring"},{key:"question",Icon:Sparkle,label:"Question",desc:"Answer something intimate"},{key:"fantasy",Icon:Star,label:"Fantasy",desc:"Share a fantasy"}];
-  const generate=async()=>{
+function getDesirePromptV2(cat) {
+  const pool = DESIRE_PROMPTS_V2[cat] || DESIRE_PROMPTS_V2.confess;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// DESIRE GAME COMPONENT — paste below the prompts above
+// ══════════════════════════════════════════════════════════════════
+
+function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
+  const pk = userKey === "A" ? "B" : "A";
+  const fk = "desire"; // persistent key — not date-based, unlimited rounds
+  const desire = roomData?.[fk];
+
+  const [loading, setLoading] = useState(false);
+  const [response, setResponse] = useState("");
+  const [category, setCategory] = useState("random");
+  const [teaseText, setTeaseText] = useState("");
+  const [localTeases, setLocalTeases] = useState([]); // optimistic local state
+
+  const CATS = [
+    {key:"confess",  Icon:ChatTeardrop, label:"Confess",  desc:"Admit something bold",        emoji:"🫦"},
+    {key:"dare",     Icon:Fire,         label:"Dare",     desc:"Do something daring",          emoji:"🔥"},
+    {key:"question", Icon:Sparkle,      label:"Question", desc:"Answer something intimate",    emoji:"💋"},
+    {key:"fantasy",  Icon:Star,         label:"Fantasy",  desc:"Share a fantasy",              emoji:"🌙"},
+  ];
+
+  const REACTIONS = ["🍆","🍑","💦","🔥","😈","🫦","💋","🥵","😏","❤️‍🔥"];
+
+  const phase = !desire?.prompt       ? "gen"
+    : !desire?.responses?.[userKey]   ? "respond"
+    : !desire?.responses?.[pk]        ? "wait"
+    : !desire?.revealed               ? "reveal"
+    : "result";
+
+  const catInfo = CATS.find(c => c.key === desire?.category) || CATS[0];
+  const CatIcon = catInfo.Icon;
+
+  // Reset local teases when a new round starts
+  useEffect(() => {
+    setLocalTeases([]);
+    setResponse("");
+  }, [desire?.startedAt]);
+
+  // Generate a new round
+  const generate = async () => {
     setLoading(true);
-    const cat=category==="random"?["confess","dare","question","fantasy"][Math.floor(Math.random()*4)]:category;
-    const prompt=getDesirePrompt(cat);
-    await update({[fk]:{prompt,category:cat,responses:{},revealed:false}});
+    setLocalTeases([]);
+    setResponse("");
+    const cat = category === "random"
+      ? ["confess","dare","question","fantasy"][Math.floor(Math.random() * 4)]
+      : category;
+    const prompt = getDesirePromptV2(cat);
+    await update({[fk]: {
+      prompt,
+      category: cat,
+      responses: {},
+      revealed: false,
+      teases: [],
+      roundCount: (desire?.roundCount || 0) + 1,
+      startedAt: Date.now(),
+    }});
     setLoading(false);
   };
-  const submitResponse=async()=>{ if(!response.trim()) return; await update({[`${fk}.responses.${userKey}`]:response.trim()}); await addN("desire",`${me?.name} responded to Desire`); };
-  const reveal=async()=>{ await update({[`${fk}.revealed`]:true}); };
-  const phase=!desire?.prompt?"gen":!desire?.responses?.[userKey]?"respond":!desire?.responses?.[pk]?"wait":!desire?.revealed?"reveal":"result";
-  const catInfo=CATS.find(c=>c.key===desire?.category)||CATS[0];
-  const CatIcon=catInfo.Icon;
-  return (
-    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#1A0A05 0%,#2A0F08 40%,#FFF6F3 100%)",paddingBottom:96}}>
-      <div style={{position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:-80,left:"50%",transform:"translateX(-50%)",width:400,height:400,borderRadius:"50%",background:"radial-gradient(circle,rgba(212,82,106,0.25) 0%,rgba(100,30,20,0.15) 50%,transparent 100%)",filter:"blur(50px)",pointerEvents:"none"}}/>
-        <div style={{padding:"22px 18px 24px",position:"relative",zIndex:1}}>
-          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:26}}>
-            <button onClick={back} style={{background:"rgba(255,255,255,0.10)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:12,cursor:"pointer",padding:"9px 11px",lineHeight:1,display:"flex",alignItems:"center"}}><ArrowLeft size={20} color="rgba(255,255,255,0.7)"/></button>
-            <div style={{flex:1}}><h2 style={{fontFamily:PF,fontSize:22,fontWeight:400,fontStyle:"italic",color:"#FAF0E8"}}>Desire</h2><div style={{fontSize:12,color:"rgba(250,240,232,0.5)",fontFamily:LT}}>Bold. Daring. Just the two of you.</div></div>
-            <div style={{background:"rgba(212,82,106,0.2)",border:"1px solid rgba(212,82,106,0.3)",borderRadius:20,padding:"5px 13px",display:"flex",alignItems:"center",gap:5}}><Fire size={12} color="#E8A080" weight="fill"/><span style={{fontSize:11,fontWeight:700,color:"#E8A080",fontFamily:LT}}>SPICY</span></div>
-          </div>
-          {phase==="gen"&&<div className="fade-rise">
-            <div style={{textAlign:"center",paddingTop:12,marginBottom:36}}>
-              <div style={{position:"relative",display:"inline-block",marginBottom:24}}><div style={{position:"absolute",inset:-20,borderRadius:"50%",border:"1px solid rgba(212,82,106,0.3)",animation:"hbRing1 2.5s ease-out infinite"}}/><div style={{position:"absolute",inset:-36,borderRadius:"50%",border:"1px solid rgba(212,82,106,0.15)",animation:"hbRing2 2.5s ease-out infinite 0.6s"}}/><div style={{width:100,height:100,borderRadius:"50%",background:"linear-gradient(135deg,#8B2A1A,#2A0F08)",display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:"0 20px 60px rgba(212,82,106,0.4)"}}><Fire size={48} color="#E8A080" weight="fill"/></div></div>
-              <h3 style={{fontFamily:PF,fontSize:26,fontStyle:"italic",fontWeight:400,color:"#FAF0E8",marginBottom:10}}>Push each other's limits</h3>
-              <p style={{color:"rgba(250,240,232,0.55)",fontSize:15,lineHeight:1.75,fontFamily:LT}}>Bold prompts. Honest answers.<br/>Just the two of you.</p>
+
+  const submitResponse = async () => {
+    if (!response.trim()) return;
+    await update({[`${fk}.responses.${userKey}`]: response.trim()});
+    await addN("desire", `${me?.name} responded to Desire 🔥`);
+  };
+
+  // Optimistic tease — shows instantly, then syncs to Firestore
+  const sendTease = async (emoji) => {
+    const tease = {from: userKey, emoji, ts: Date.now()};
+    setLocalTeases(prev => [...prev, tease]); // instant local update
+    const current = desire?.teases || [];
+    await update({[`${fk}.teases`]: [...current, tease].slice(-30)});
+  };
+
+  const sendTeaseText = async () => {
+    if (!teaseText.trim()) return;
+    const tease = {from: userKey, text: teaseText.trim(), ts: Date.now()};
+    setLocalTeases(prev => [...prev, tease]); // instant local update
+    const current = desire?.teases || [];
+    await update({[`${fk}.teases`]: [...current, tease].slice(-30)});
+    setTeaseText("");
+  };
+
+  const reveal = async () => {
+    await update({[`${fk}.revealed`]: true});
+  };
+
+  const newRound = async () => {
+    setResponse("");
+    setCategory("random");
+    setLocalTeases([]);
+    await update({[fk]: null});
+  };
+
+  // Merge Firestore teases + local optimistic teases, deduplicated by ts
+  const getMergedTeases = () => {
+    const firestoreTeases = desire?.teases || [];
+    const firestoreTs = new Set(firestoreTeases.map(t => t.ts));
+    // Only include local teases not yet confirmed by Firestore
+    const pendingLocal = localTeases.filter(t => !firestoreTs.has(t.ts));
+    return [...firestoreTeases, ...pendingLocal].sort((a, b) => a.ts - b.ts);
+  };
+
+  // Tease live panel — used in respond and wait phases
+  const TeaseLive = () => {
+    const allTeases = getMergedTeases();
+    const partnerTeases = allTeases.filter(t => t.from !== userKey);
+    const latestPartnerTease = partnerTeases[partnerTeases.length - 1];
+    const myRecentTeases = allTeases.filter(t => t.from === userKey).slice(-3);
+
+    return (
+      <div style={{marginTop: 20}}>
+
+        {/* Partner's latest tease — shown prominently */}
+        {latestPartnerTease && (
+          <div className="fade-rise" style={{
+            background: "rgba(212,82,106,0.12)",
+            borderRadius: 16,
+            padding: "14px 18px",
+            marginBottom: 14,
+            border: "1px solid rgba(212,82,106,0.25)",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: "50%",
+              background: "linear-gradient(135deg,#8B2A1A,#C4522A)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#FAF0E8", fontFamily: LT,
+            }}>
+              {partner?.name?.[0]}
             </div>
-            <div style={{marginBottom:24}}><div style={{fontSize:11,fontWeight:700,color:"rgba(250,240,232,0.4)",textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>Choose a category</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <button onClick={()=>setCategory("random")} className="card-hover" style={{padding:"18px 12px",borderRadius:20,border:`2px solid ${category==="random"?"rgba(212,82,106,0.6)":"rgba(255,255,255,0.10)"}`,background:category==="random"?"rgba(212,82,106,0.15)":"rgba(255,255,255,0.05)",cursor:"pointer",fontFamily:LT,textAlign:"center"}}><div style={{width:40,height:40,borderRadius:13,background:"rgba(255,255,255,0.10)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}}><Sparkle size={20} color={category==="random"?"#E8A080":"rgba(255,255,255,0.4)"} weight="fill"/></div><div style={{fontSize:13,fontWeight:700,color:category==="random"?"#E8A080":"rgba(255,255,255,0.5)"}}>Surprise me</div></button>
-              {CATS.map(cat=>{ const CI=cat.Icon; return <button key={cat.key} onClick={()=>setCategory(cat.key)} className="card-hover" style={{padding:"18px 12px",borderRadius:20,border:`2px solid ${category===cat.key?"rgba(212,82,106,0.6)":"rgba(255,255,255,0.10)"}`,background:category===cat.key?"rgba(212,82,106,0.15)":"rgba(255,255,255,0.05)",cursor:"pointer",fontFamily:LT,textAlign:"center"}}><div style={{width:40,height:40,borderRadius:13,background:"rgba(255,255,255,0.10)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}}><CI size={20} color={category===cat.key?"#E8A080":"rgba(255,255,255,0.4)"} weight="fill"/></div><div style={{fontSize:13,fontWeight:700,color:category===cat.key?"#E8A080":"rgba(255,255,255,0.5)"}}>{cat.label}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginTop:3,fontFamily:LT}}>{cat.desc}</div></button>; })}
-            </div></div>
-            {loading?<div style={{textAlign:"center",padding:"36px 0"}}><div className="hb-spin" style={{display:"inline-block",marginBottom:14}}><Fire size={32} color="#E8A080"/></div><div style={{fontSize:14,color:"rgba(250,240,232,0.5)",fontFamily:LT}}>Generating your prompt...</div></div>:<button onClick={generate} className="card-hover" style={{display:"block",width:"100%",borderRadius:18,padding:"15px 24px",fontFamily:LT,fontSize:15,fontWeight:700,background:"linear-gradient(135deg,#8B2A1A,#C4522A)",color:"#FAF0E8",border:"none",cursor:"pointer",boxShadow:"0 8px 24px rgba(212,82,106,0.35)"}}>Generate prompt</button>}
-          </div>}
-          {phase!=="gen"&&desire?.prompt&&<div style={{background:"rgba(255,255,255,0.06)",backdropFilter:"blur(12px)",borderRadius:22,padding:28,marginBottom:22,textAlign:"center",border:"1px solid rgba(255,255,255,0.10)"}}><div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:11,fontWeight:700,color:"#E8A080",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:16,fontFamily:LT}}><CatIcon size={14} color="#E8A080" weight="fill"/>{catInfo.label}</div><p style={{fontFamily:PF,fontSize:20,fontStyle:"italic",color:"#FAF0E8",lineHeight:1.65,margin:0}}>{desire.prompt}</p></div>}
+            <div style={{flex: 1}}>
+              <div style={{fontSize: 10, color: "#E8A080", fontFamily: LT, fontWeight: 700, marginBottom: 4}}>
+                {partner?.name}
+              </div>
+              {latestPartnerTease.emoji
+                ? <div style={{fontSize: 28, lineHeight: 1}}>{latestPartnerTease.emoji}</div>
+                : <div style={{fontSize: 14, color: "#FAF0E8", fontFamily: PF, fontStyle: "italic", lineHeight: 1.5}}>
+                    "{latestPartnerTease.text}"
+                  </div>
+              }
+            </div>
+          </div>
+        )}
+
+        {/* My recent teases — shown dimly so they know it sent */}
+        {myRecentTeases.length > 0 && (
+          <div style={{display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12, justifyContent: "flex-end"}}>
+            {myRecentTeases.map((t, i) => (
+              <div key={i} style={{
+                background: "rgba(255,255,255,0.06)",
+                borderRadius: 10,
+                padding: t.emoji ? "6px 8px" : "6px 12px",
+                fontSize: t.emoji ? 18 : 12,
+                color: "rgba(250,240,232,0.5)",
+                fontFamily: LT,
+                fontStyle: t.text ? "italic" : "normal",
+                border: "1px solid rgba(255,255,255,0.06)",
+              }}>
+                {t.emoji || `"${t.text}"`}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Emoji reaction bar */}
+        <div style={{
+          background: "rgba(255,255,255,0.04)",
+          borderRadius: 18,
+          padding: "14px 12px",
+          border: "1px solid rgba(255,255,255,0.07)",
+          marginBottom: 12,
+        }}>
+          <div style={{fontSize: 10, color: "rgba(250,240,232,0.35)", fontFamily: LT, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10}}>
+            React while they think...
+          </div>
+          <div style={{display: "flex", gap: 6, flexWrap: "wrap"}}>
+            {REACTIONS.map(emoji => (
+              <button
+                key={emoji}
+                onClick={() => sendTease(emoji)}
+                style={{
+                  fontSize: 22,
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: 12,
+                  width: 44,
+                  height: 44,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.15s",
+                  flexShrink: 0,
+                }}
+                onMouseEnter={e => {e.currentTarget.style.background="rgba(212,82,106,0.25)"; e.currentTarget.style.transform="scale(1.15)";}}
+                onMouseLeave={e => {e.currentTarget.style.background="rgba(255,255,255,0.06)"; e.currentTarget.style.transform="scale(1)";}}
+                onTouchStart={e => e.currentTarget.style.transform="scale(1.15)"}
+                onTouchEnd={e => e.currentTarget.style.transform="scale(1)"}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
         </div>
-        {phase==="respond"&&<div style={{padding:"0 18px",position:"relative",zIndex:1}} className="fade-rise"><div style={{background:"rgba(255,255,255,0.96)",borderRadius:20,padding:22,marginBottom:16,boxShadow:SHADOWS.xl}}><Field textarea label={`Your response, ${me?.name}`} value={response} onChange={e=>setResponse(e.target.value)} placeholder="Be honest. Be bold." es={{minHeight:120}}/><button onClick={submitResponse} disabled={!response.trim()} className="card-hover" style={{display:"block",width:"100%",borderRadius:18,padding:"15px 24px",fontFamily:LT,fontSize:15,fontWeight:700,background:"linear-gradient(135deg,#8B2A1A,#C4522A)",color:"#FAF0E8",border:"none",cursor:response.trim()?"pointer":"not-allowed",opacity:response.trim()?1:0.45,boxShadow:"0 8px 24px rgba(212,82,106,0.35)"}}>Lock in my response →</button></div><p style={{textAlign:"center",fontSize:12,color:"rgba(250,240,232,0.4)",fontFamily:LT}}>Hidden until your partner responds</p></div>}
-        {phase==="wait"&&<div style={{padding:"0 18px",position:"relative",zIndex:1}} className="fade-rise"><div style={{background:"rgba(255,255,255,0.96)",borderRadius:20,padding:22,marginBottom:16,boxShadow:SHADOWS.xl}}><div style={{fontSize:11,fontWeight:700,color:C.rose,marginBottom:8,fontFamily:LT,display:"flex",alignItems:"center",gap:5}}><CheckCircle size={14} color={C.rose} weight="fill"/>Your response is locked in</div><div style={{fontSize:15,color:C.text,fontFamily:LT,lineHeight:1.6}}>{desire?.responses?.[userKey]}</div></div><div style={{background:"rgba(255,255,255,0.08)",borderRadius:14,padding:14,textAlign:"center",fontSize:13,color:"rgba(250,240,232,0.5)",fontFamily:LT,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><Sparkle size={14} color="rgba(250,240,232,0.5)"/>Waiting for {partner?.name} to respond...</div></div>}
-        {phase==="reveal"&&<div style={{padding:"0 18px",position:"relative",zIndex:1,textAlign:"center"}} className="fade-rise"><div style={{paddingTop:8,paddingBottom:32}}><div style={{position:"relative",display:"inline-block",marginBottom:20}}><div style={{position:"absolute",inset:-20,borderRadius:"50%",border:"1px solid rgba(212,82,106,0.3)",animation:"hbRing1 2.5s ease-out infinite"}}/><div style={{width:80,height:80,borderRadius:"50%",background:"linear-gradient(135deg,#8B2A1A,#C4522A)",display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:"0 12px 40px rgba(212,82,106,0.5)"}}><Fire size={40} color="#FAF0E8" weight="fill"/></div></div><p style={{fontFamily:PF,fontSize:22,fontStyle:"italic",color:"#FAF0E8",marginBottom:8}}>Both of you have responded.</p><p style={{fontSize:14,color:"rgba(250,240,232,0.5)",fontFamily:LT,marginBottom:32}}>Open this together. Read at the same time.</p><button onClick={reveal} className="card-hover" style={{display:"block",width:"100%",borderRadius:18,padding:"15px 24px",fontFamily:LT,fontSize:15,fontWeight:700,background:"linear-gradient(135deg,#8B2A1A,#C4522A)",color:"#FAF0E8",border:"none",cursor:"pointer",boxShadow:"0 12px 36px rgba(212,82,106,0.45)"}}>Reveal together</button></div></div>}
-        {phase==="result"&&<div style={{padding:"0 18px",position:"relative",zIndex:1}} className="fade-rise">{[[userKey,me?.name,C.rose,C.roseSoft,C.roseBd],[pk,partner?.name,C.gold,C.goldSoft,C.goldBd]].map(([key,name,color,soft,bd])=>(<Card key={key} elevated gradient={`linear-gradient(135deg,rgba(255,255,255,0.99),${soft})`} style={{marginBottom:14,border:`1px solid ${bd}`}}><div style={{fontSize:11,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>{name}</div><p style={{fontFamily:PF,fontSize:18,fontStyle:"italic",color:C.text,lineHeight:1.65,margin:0}}>"{desire.responses?.[key]||<i style={{color:C.muted}}>Not answered yet</i>}"</p></Card>))}<button onClick={()=>update({[fk]:null})} className="card-hover" style={{display:"block",width:"100%",borderRadius:18,padding:"14px 24px",fontFamily:LT,fontSize:15,fontWeight:700,background:"linear-gradient(135deg,#8B2A1A,#C4522A)",color:"#FAF0E8",border:"none",cursor:"pointer",boxShadow:"0 8px 24px rgba(212,82,106,0.35)",marginBottom:10}}>New prompt</button><Btn variant="ghost" onClick={back}>← Back</Btn></div>}
+
+        {/* Short text tease */}
+        <div style={{display: "flex", gap: 10}}>
+          <input
+            type="text"
+            value={teaseText}
+            onChange={e => setTeaseText(e.target.value)}
+            onKeyPress={e => e.key === "Enter" && sendTeaseText()}
+            placeholder="Say something cheeky..."
+            maxLength={60}
+            style={{
+              flex: 1,
+              background: "rgba(255,255,255,0.07)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: 14,
+              padding: "12px 16px",
+              fontFamily: LT,
+              fontSize: 14,
+              color: "#FAF0E8",
+              outline: "none",
+            }}
+          />
+          <button
+            onClick={sendTeaseText}
+            disabled={!teaseText.trim()}
+            style={{
+              width: 48, height: 48,
+              borderRadius: 14,
+              background: teaseText.trim() ? "linear-gradient(135deg,#8B2A1A,#C4522A)" : "rgba(255,255,255,0.06)",
+              border: "none",
+              cursor: teaseText.trim() ? "pointer" : "not-allowed",
+              fontSize: 20,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              transition: "all 0.2s",
+            }}
+          >
+            💋
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{minHeight: "100vh", background: "linear-gradient(180deg,#1A0A05 0%,#2A0F08 40%,#1A0A05 100%)", paddingBottom: 96}}>
+      <div style={{position: "relative", overflow: "hidden"}}>
+        <div style={{position: "absolute", top: -80, left: "50%", transform: "translateX(-50%)", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle,rgba(212,82,106,0.25) 0%,rgba(100,30,20,0.15) 50%,transparent 100%)", filter: "blur(50px)", pointerEvents: "none"}}/>
+
+        {/* HEADER */}
+        <div style={{padding: "22px 18px 0", position: "relative", zIndex: 1}}>
+          <div style={{display: "flex", alignItems: "center", gap: 12, marginBottom: 26}}>
+            <button onClick={back} style={{background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 12, cursor: "pointer", padding: "9px 11px", lineHeight: 1, display: "flex", alignItems: "center"}}>
+              <ArrowLeft size={20} color="rgba(255,255,255,0.7)"/>
+            </button>
+            <div style={{flex: 1}}>
+              <h2 style={{fontFamily: PF, fontSize: 22, fontWeight: 400, fontStyle: "italic", color: "#FAF0E8"}}>Desire</h2>
+              <div style={{fontSize: 12, color: "rgba(250,240,232,0.5)", fontFamily: LT}}>Bold. Daring. Just the two of you.</div>
+            </div>
+            <div style={{display: "flex", alignItems: "center", gap: 8}}>
+              {(desire?.roundCount || 0) > 0 && (
+                <div style={{background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 20, padding: "4px 10px", fontSize: 11, color: "rgba(250,240,232,0.45)", fontFamily: LT}}>
+                  Round {desire.roundCount}
+                </div>
+              )}
+              <div style={{background: "rgba(212,82,106,0.2)", border: "1px solid rgba(212,82,106,0.3)", borderRadius: 20, padding: "5px 13px", display: "flex", alignItems: "center", gap: 5}}>
+                <Fire size={12} color="#E8A080" weight="fill"/>
+                <span style={{fontSize: 11, fontWeight: 700, color: "#E8A080", fontFamily: LT}}>SPICY</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* PHASE: GEN */}
+        {phase === "gen" && (
+          <div style={{padding: "0 18px", position: "relative", zIndex: 1}} className="fade-rise">
+            <div style={{textAlign: "center", paddingTop: 12, marginBottom: 36}}>
+              <div style={{position: "relative", display: "inline-block", marginBottom: 24}}>
+                <div style={{position: "absolute", inset: -20, borderRadius: "50%", border: "1px solid rgba(212,82,106,0.3)", animation: "hbRing1 2.5s ease-out infinite"}}/>
+                <div style={{position: "absolute", inset: -36, borderRadius: "50%", border: "1px solid rgba(212,82,106,0.15)", animation: "hbRing2 2.5s ease-out infinite 0.6s"}}/>
+                <div style={{width: 100, height: 100, borderRadius: "50%", background: "linear-gradient(135deg,#8B2A1A,#2A0F08)", display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 20px 60px rgba(212,82,106,0.4)"}}>
+                  <Fire size={48} color="#E8A080" weight="fill"/>
+                </div>
+              </div>
+              <h3 style={{fontFamily: PF, fontSize: 26, fontStyle: "italic", fontWeight: 400, color: "#FAF0E8", marginBottom: 10}}>Push each other's limits</h3>
+              <p style={{color: "rgba(250,240,232,0.55)", fontSize: 15, lineHeight: 1.75, fontFamily: LT}}>Bold prompts. Honest answers.<br/>Just the two of you.</p>
+            </div>
+
+            <div style={{marginBottom: 24}}>
+              <div style={{fontSize: 11, fontWeight: 700, color: "rgba(250,240,232,0.4)", textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12, fontFamily: LT}}>Choose a category</div>
+              <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10}}>
+                <button onClick={() => setCategory("random")} className="card-hover" style={{padding: "18px 12px", borderRadius: 20, border: `2px solid ${category === "random" ? "rgba(212,82,106,0.6)" : "rgba(255,255,255,0.10)"}`, background: category === "random" ? "rgba(212,82,106,0.15)" : "rgba(255,255,255,0.05)", cursor: "pointer", fontFamily: LT, textAlign: "center"}}>
+                  <div style={{fontSize: 28, marginBottom: 8}}>🎲</div>
+                  <div style={{fontSize: 13, fontWeight: 700, color: category === "random" ? "#E8A080" : "rgba(255,255,255,0.5)"}}>Surprise me</div>
+                </button>
+                {CATS.map(cat => {
+                  const CI = cat.Icon;
+                  return (
+                    <button key={cat.key} onClick={() => setCategory(cat.key)} className="card-hover" style={{padding: "18px 12px", borderRadius: 20, border: `2px solid ${category === cat.key ? "rgba(212,82,106,0.6)" : "rgba(255,255,255,0.10)"}`, background: category === cat.key ? "rgba(212,82,106,0.15)" : "rgba(255,255,255,0.05)", cursor: "pointer", fontFamily: LT, textAlign: "center"}}>
+                      <div style={{fontSize: 28, marginBottom: 8}}>{cat.emoji}</div>
+                      <div style={{fontSize: 13, fontWeight: 700, color: category === cat.key ? "#E8A080" : "rgba(255,255,255,0.5)"}}>{cat.label}</div>
+                      <div style={{fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 3, fontFamily: LT}}>{cat.desc}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {loading
+              ? <div style={{textAlign: "center", padding: "36px 0"}}><div className="hb-spin" style={{display: "inline-block", marginBottom: 14}}><Fire size={32} color="#E8A080"/></div><div style={{fontSize: 14, color: "rgba(250,240,232,0.5)", fontFamily: LT}}>Generating your prompt...</div></div>
+              : <button onClick={generate} className="card-hover" style={{display: "block", width: "100%", borderRadius: 18, padding: "15px 24px", fontFamily: LT, fontSize: 15, fontWeight: 700, background: "linear-gradient(135deg,#8B2A1A,#C4522A)", color: "#FAF0E8", border: "none", cursor: "pointer", boxShadow: "0 8px 24px rgba(212,82,106,0.35)"}}>
+                  Generate prompt 🔥
+                </button>
+            }
+          </div>
+        )}
+
+        {/* PROMPT CARD — shown in all non-gen phases */}
+        {phase !== "gen" && desire?.prompt && (
+          <div style={{padding: "0 18px", position: "relative", zIndex: 1}}>
+            <div style={{background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", borderRadius: 22, padding: 28, marginBottom: 20, textAlign: "center", border: "1px solid rgba(255,255,255,0.10)"}}>
+              <div style={{display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#E8A080", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16, fontFamily: LT}}>
+                <span style={{fontSize: 16}}>{catInfo.emoji}</span> {catInfo.label}
+              </div>
+              <p style={{fontFamily: PF, fontSize: 20, fontStyle: "italic", color: "#FAF0E8", lineHeight: 1.65, margin: 0}}>{desire.prompt}</p>
+            </div>
+          </div>
+        )}
+
+        {/* PHASE: RESPOND */}
+        {phase === "respond" && (
+          <div style={{padding: "0 18px", position: "relative", zIndex: 1}} className="fade-rise">
+            <div style={{background: "rgba(255,255,255,0.96)", borderRadius: 20, padding: 22, marginBottom: 16, boxShadow: SHADOWS.xl}}>
+              <Field
+                textarea
+                label={`Your response, ${me?.name}`}
+                value={response}
+                onChange={e => setResponse(e.target.value)}
+                placeholder="Be honest. Be bold."
+              />
+              <button onClick={submitResponse} disabled={!response.trim()} className="card-hover" style={{display: "block", width: "100%", borderRadius: 18, padding: "15px 24px", fontFamily: LT, fontSize: 15, fontWeight: 700, background: "linear-gradient(135deg,#8B2A1A,#C4522A)", color: "#FAF0E8", border: "none", cursor: response.trim() ? "pointer" : "not-allowed", opacity: response.trim() ? 1 : 0.45, boxShadow: "0 8px 24px rgba(212,82,106,0.35)"}}>
+                Lock in my response →
+              </button>
+            </div>
+            <p style={{textAlign: "center", fontSize: 12, color: "rgba(250,240,232,0.4)", fontFamily: LT, marginBottom: 0}}>Hidden until your partner responds</p>
+            <TeaseLive/>
+          </div>
+        )}
+
+        {/* PHASE: WAIT */}
+        {phase === "wait" && (
+          <div style={{padding: "0 18px", position: "relative", zIndex: 1}} className="fade-rise">
+            <div style={{background: "rgba(255,255,255,0.96)", borderRadius: 20, padding: 22, marginBottom: 14, boxShadow: SHADOWS.xl}}>
+              <div style={{fontSize: 11, fontWeight: 700, color: C.rose, marginBottom: 8, fontFamily: LT, display: "flex", alignItems: "center", gap: 5}}>
+                <CheckCircle size={14} color={C.rose} weight="fill"/> Your response is locked in
+              </div>
+              <div style={{fontSize: 15, color: C.text, fontFamily: LT, lineHeight: 1.6}}>{desire?.responses?.[userKey]}</div>
+            </div>
+            <div style={{background: "rgba(255,255,255,0.07)", borderRadius: 14, padding: 14, textAlign: "center", fontSize: 13, color: "rgba(250,240,232,0.5)", fontFamily: LT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 0}}>
+              <Sparkle size={14} color="rgba(250,240,232,0.5)"/> Waiting for {partner?.name}...
+            </div>
+            <TeaseLive/>
+          </div>
+        )}
+
+        {/* PHASE: REVEAL */}
+        {phase === "reveal" && (
+          <div style={{padding: "0 18px", position: "relative", zIndex: 1, textAlign: "center"}} className="fade-rise">
+            <div style={{paddingTop: 8, paddingBottom: 32}}>
+              <div style={{position: "relative", display: "inline-block", marginBottom: 20}}>
+                <div style={{position: "absolute", inset: -20, borderRadius: "50%", border: "1px solid rgba(212,82,106,0.3)", animation: "hbRing1 2.5s ease-out infinite"}}/>
+                <div style={{width: 80, height: 80, borderRadius: "50%", background: "linear-gradient(135deg,#8B2A1A,#C4522A)", display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 40px rgba(212,82,106,0.5)"}}>
+                  <Fire size={40} color="#FAF0E8" weight="fill"/>
+                </div>
+              </div>
+              <p style={{fontFamily: PF, fontSize: 22, fontStyle: "italic", color: "#FAF0E8", marginBottom: 8}}>Both of you have responded.</p>
+              <p style={{fontSize: 14, color: "rgba(250,240,232,0.5)", fontFamily: LT, marginBottom: 24}}>Open this together. Read at the same time.</p>
+
+              {/* Tease recap before reveal */}
+              {getMergedTeases().length > 0 && (
+                <div style={{marginBottom: 24, textAlign: "left"}}>
+                  <div style={{fontSize: 11, color: "rgba(250,240,232,0.35)", fontFamily: LT, marginBottom: 10, textAlign: "center"}}>While you were thinking...</div>
+                  <div style={{display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center"}}>
+                    {getMergedTeases().map((t, i) => (
+                      <div key={i} style={{background: "rgba(255,255,255,0.07)", borderRadius: 12, padding: t.emoji ? "8px 10px" : "7px 12px", border: "1px solid rgba(255,255,255,0.08)"}}>
+                        {t.emoji
+                          ? <span style={{fontSize: 22}}>{t.emoji}</span>
+                          : <span style={{fontSize: 12, color: "rgba(250,240,232,0.7)", fontFamily: LT, fontStyle: "italic"}}>"{t.text}"</span>
+                        }
+                        <span style={{fontSize: 9, color: "rgba(250,240,232,0.3)", marginLeft: 6, fontFamily: LT}}>
+                          {t.from === userKey ? me?.name : partner?.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button onClick={reveal} className="card-hover" style={{display: "block", width: "100%", borderRadius: 18, padding: "15px 24px", fontFamily: LT, fontSize: 15, fontWeight: 700, background: "linear-gradient(135deg,#8B2A1A,#C4522A)", color: "#FAF0E8", border: "none", cursor: "pointer", boxShadow: "0 12px 36px rgba(212,82,106,0.45)"}}>
+                Reveal together 🔥
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* PHASE: RESULT */}
+        {phase === "result" && (
+          <div style={{padding: "0 18px", position: "relative", zIndex: 1}} className="fade-rise">
+            {[[userKey, me?.name, C.rose, C.roseSoft, C.roseBd], [pk, partner?.name, C.gold, C.goldSoft, C.goldBd]].map(([key, name, color, soft, bd]) => (
+              <Card key={key} elevated gradient={`linear-gradient(135deg,rgba(255,255,255,0.99),${soft})`} style={{marginBottom: 14, border: `1px solid ${bd}`}}>
+                <div style={{fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12, fontFamily: LT}}>{name}</div>
+                <p style={{fontFamily: PF, fontSize: 18, fontStyle: "italic", color: C.text, lineHeight: 1.65, margin: 0}}>
+                  "{desire.responses?.[key] || <i style={{color: C.muted}}>Not answered yet</i>}"
+                </p>
+              </Card>
+            ))}
+
+            {/* React to the reveal */}
+            <div style={{background: "rgba(255,255,255,0.06)", borderRadius: 18, padding: "14px 16px", marginBottom: 16, border: "1px solid rgba(255,255,255,0.08)"}}>
+              <div style={{fontSize: 10, color: "rgba(250,240,232,0.35)", fontFamily: LT, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10}}>React to what they said</div>
+              <div style={{display: "flex", gap: 6, flexWrap: "wrap"}}>
+                {REACTIONS.map(emoji => (
+                  <button key={emoji} onClick={() => sendTease(emoji)} style={{fontSize: 22, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, width: 42, height: 42, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s"}}
+                    onMouseEnter={e => e.currentTarget.style.transform="scale(1.15)"}
+                    onMouseLeave={e => e.currentTarget.style.transform="scale(1)"}>
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={newRound} className="card-hover" style={{display: "block", width: "100%", borderRadius: 18, padding: "15px 24px", fontFamily: LT, fontSize: 15, fontWeight: 700, background: "linear-gradient(135deg,#8B2A1A,#C4522A)", color: "#FAF0E8", border: "none", cursor: "pointer", boxShadow: "0 8px 24px rgba(212,82,106,0.35)", marginBottom: 10}}>
+              Next round 🔥
+            </button>
+            <Btn variant="ghost" onClick={back}>Back</Btn>
+          </div>
+        )}
+
       </div>
     </div>
   );
 }
+
 
 // ══════════════════════════════════════════════════════════════════
 // ARCADE GAMES — Tic Tac Toe, Wordle Duel, Pictionary
