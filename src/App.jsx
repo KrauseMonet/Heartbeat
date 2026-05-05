@@ -182,6 +182,12 @@ body::before{content:'';position:fixed;inset:0;background:url('/images/bg.jpg') 
   @keyframes slideIn{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
   @keyframes stagger1{0%{opacity:0;transform:translateY(16px)}100%{opacity:1;transform:none}}
   @keyframes shake{0%,100%{transform:translateX(0)}10%,50%,90%{transform:translateX(-4px)}30%,70%{transform:translateX(4px)}}
+  @keyframes hbPartnerPulse{0%{transform:scale(1);box-shadow:0 0 0 0 rgba(212,146,42,0.7)}50%{transform:scale(1.18);box-shadow:0 0 0 28px rgba(212,146,42,0)}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(212,146,42,0)}}
+  @keyframes hbGoldGlow{0%,100%{box-shadow:0 10px 32px rgba(212,146,42,0.55),0 0 0 0 rgba(212,146,42,0.4)}50%{box-shadow:0 10px 48px rgba(212,146,42,0.9),0 0 0 20px rgba(212,146,42,0)}}
+  @keyframes hbHeartPop{0%{transform:scale(1)}20%{transform:scale(1.35)}40%{transform:scale(0.9)}60%{transform:scale(1.15)}80%{transform:scale(0.97)}100%{transform:scale(1)}}
+  .hb-partner-pulse{animation:hbPartnerPulse 0.7s ease-out!important;}
+  .hb-gold-glow{animation:hbGoldGlow 1.8s ease-in-out infinite;}
+  .hb-heart-pop{animation:hbHeartPop 0.5s cubic-bezier(0.22,1,0.36,1)!important;}
 
   .fade-rise{animation:fadeRise 0.45s cubic-bezier(0.22,1,0.36,1) both;}
   .fade-in{animation:fadeIn 0.35s ease both;}
@@ -948,18 +954,85 @@ const sendHeart=async()=>{
       {/* ── FLOATING HEART CTA ── */}
 <div style={{position:"fixed",bottom:110,right:16,zIndex:15,display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
   {partnerMsg&&(
-    <div className="fade-rise" style={{background:"rgba(255,255,255,0.96)",borderRadius:20,padding:"9px 15px",fontSize:11,color:C.rose,fontFamily:LT,fontWeight:700,boxShadow:SHADOWS.lg,backdropFilter:"blur(10px)",whiteSpace:"nowrap",border:`1px solid ${C.roseBd}`,textAlign:"center",lineHeight:1.5}}>
+    <div className="fade-rise" style={{background:"rgba(255,255,255,0.96)",borderRadius:20,padding:"9px 15px",fontSize:11,color:C.gold,fontFamily:LT,fontWeight:700,boxShadow:`${SHADOWS.lg},0 0 20px rgba(212,146,42,0.25)`,backdropFilter:"blur(10px)",whiteSpace:"nowrap",border:`1px solid ${C.goldBd}`,textAlign:"center",lineHeight:1.5}}>
       {partner?.name} is thinking<br/>of you ♥
     </div>
   )}
   <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:7}}>
-    <button onClick={sendHeart} className={myBeating?"hb-beat":partnerMsg?"hb-fast":"heart-float"} style={{width:76,height:76,borderRadius:"50%",border:"none",background:partnerMsg?C.gradGold:C.gradRose,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:partnerMsg?`0 10px 32px rgba(212,146,42,0.55)`:SHADOWS.xl,transition:"background 0.5s,box-shadow 0.5s",position:"relative",flexShrink:0}}>
-      <div style={{position:"absolute",inset:-12,borderRadius:"50%",border:`2px solid ${partnerMsg?"rgba(212,146,42,0.40)":"rgba(212,82,106,0.32)"}`,animation:"hbRing1 2.6s ease-out infinite",pointerEvents:"none"}}/>
-      <div style={{position:"absolute",inset:-26,borderRadius:"50%",border:`1.5px solid ${partnerMsg?"rgba(212,146,42,0.20)":"rgba(212,82,106,0.16)"}`,animation:"hbRing2 2.6s ease-out infinite 0.7s",pointerEvents:"none"}}/>
-      <Heart size={34} color="#fff" weight="fill"/>
+    <button
+      onClick={sendHeart}
+      className={
+        myBeating ? "hb-heart-pop" :
+        partnerMsg ? "hb-gold-glow" :
+        "heart-float"
+      }
+      style={{
+        width:76, height:76, borderRadius:"50%", border:"none",
+        background: partnerMsg
+          ? "linear-gradient(135deg,#F0C060,#D4922A)"
+          : C.gradRose,
+        cursor:"pointer",
+        display:"flex", alignItems:"center", justifyContent:"center",
+        boxShadow: partnerMsg
+          ? `0 10px 32px rgba(212,146,42,0.65), 0 0 0 4px rgba(212,146,42,0.15)`
+          : SHADOWS.xl,
+        transition:"background 0.6s, box-shadow 0.6s",
+        position:"relative", flexShrink:0,
+      }}
+    >
+      {/* Inner glow layer — only when partner sent */}
+      {partnerMsg && (
+        <div style={{
+          position:"absolute", inset:0, borderRadius:"50%",
+          background:"radial-gradient(circle at 35% 35%, rgba(255,255,255,0.35) 0%, transparent 65%)",
+          pointerEvents:"none",
+        }}/>
+      )}
+      {/* Pulse rings */}
+      <div style={{
+        position:"absolute", inset:-12, borderRadius:"50%",
+        border:`2px solid ${partnerMsg?"rgba(212,146,42,0.5)":"rgba(212,82,106,0.32)"}`,
+        animation: partnerMsg ? "hbRing1 1.4s ease-out infinite" : "hbRing1 2.6s ease-out infinite",
+        pointerEvents:"none",
+      }}/>
+      <div style={{
+        position:"absolute", inset:-26, borderRadius:"50%",
+        border:`1.5px solid ${partnerMsg?"rgba(212,146,42,0.25)":"rgba(212,82,106,0.16)"}`,
+        animation: partnerMsg ? "hbRing2 1.4s ease-out infinite 0.4s" : "hbRing2 2.6s ease-out infinite 0.7s",
+        pointerEvents:"none",
+      }}/>
+      {/* Extra outer ring when partner sent — makes it feel alive */}
+      {partnerMsg && (
+        <div style={{
+          position:"absolute", inset:-42, borderRadius:"50%",
+          border:"1px solid rgba(212,146,42,0.12)",
+          animation:"hbRing2 1.4s ease-out infinite 0.8s",
+          pointerEvents:"none",
+        }}/>
+      )}
+      <Heart
+        size={34}
+        color="#fff"
+        weight="fill"
+        style={{
+          filter: partnerMsg ? "drop-shadow(0 0 8px rgba(255,255,255,0.6))" : "none",
+          transition:"filter 0.4s",
+        }}
+      />
     </button>
-    <div style={{background:"rgba(255,255,255,0.92)",backdropFilter:"blur(8px)",borderRadius:13,padding:"5px 13px",fontSize:11,fontWeight:700,color:partnerMsg?C.gold:C.rose,fontFamily:LT,boxShadow:SHADOWS.sm,border:`1px solid ${partnerMsg?C.goldBd:C.roseBd}`,whiteSpace:"nowrap",letterSpacing:"0.02em"}}>
-      {partnerMsg?`${partner?.name} ♥`:"Send a heartbeat"}
+    <div style={{
+      background: partnerMsg ? "rgba(255,240,200,0.95)" : "rgba(255,255,255,0.92)",
+      backdropFilter:"blur(8px)",
+      borderRadius:13, padding:"5px 13px",
+      fontSize:11, fontWeight:700,
+      color: partnerMsg ? C.gold : C.rose,
+      fontFamily:LT,
+      boxShadow: partnerMsg ? `${SHADOWS.sm},0 0 12px rgba(212,146,42,0.2)` : SHADOWS.sm,
+      border:`1px solid ${partnerMsg?C.goldBd:C.roseBd}`,
+      whiteSpace:"nowrap", letterSpacing:"0.02em",
+      transition:"all 0.6s",
+    }}>
+      {partnerMsg ? `${partner?.name} ♥` : "Send a heartbeat"}
     </div>
   </div>
 </div>
