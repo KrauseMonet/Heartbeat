@@ -2504,39 +2504,342 @@ function TabBar({tab,setTab,unread,notesBadge}){
 }
 
 // ── GAME SCREENS ───────────────────────────────────────────────────────────
-function QAScreen({me,partner,userKey,roomData,update,addN,back}){
-  const pk=userKey==="A"?"B":"A";
-  const fk=`qa_${todayKey()}`;
-  const qa=roomData?.[fk];
-  const [ans,setAns]=useState(qa?.answers?.[userKey]||"");
-  const [guess,setGuess]=useState(qa?.guesses?.[userKey]||"");
+function TeasePanelLight({userKey, partner, fk, roomData, update, emojis, placeholder="Send a reaction..."}) {
+  const [teaseText, setTeaseText] = useState("");
+  const [localTeases, setLocalTeases] = useState([]);
 
-  const phase=!qa?.question?"gen":!qa?.answers?.[userKey]?"answer":!qa?.guesses?.[userKey]?"guess":"result";
+  // Reset local teases when game key changes (new round)
+  useEffect(() => { setLocalTeases([]); }, [fk]);
 
-  const generate=async()=>{
-    const q=getDailyQuestion();
-    await update({[fk]:{question:q,answers:{},guesses:{},date:todayStr()}});
+  const sendEmoji = async (emoji) => {
+    const tease = {from: userKey, emoji, ts: Date.now()};
+    setLocalTeases(prev => [...prev, tease]);
+    const current = roomData?.[`${fk}_teases`] || [];
+    await update({[`${fk}_teases`]: [...current, tease].slice(-20)});
   };
 
-  const QCard=()=><Card elevated gradient="linear-gradient(135deg,rgba(255,228,220,0.99),rgba(255,248,244,0.96))" style={{marginBottom:22}}><div style={{fontSize:11,fontWeight:700,color:C.rose,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10,fontFamily:LT,display:"flex",alignItems:"center",gap:6}}><ChatTeardrop size={14} color={C.rose} weight="fill"/>Today's question</div><p style={{fontFamily:PF,fontSize:20,fontStyle:"italic",lineHeight:1.65,color:C.text,margin:0}}>"{qa.question}"</p></Card>;
+  const sendText = async () => {
+    if (!teaseText.trim()) return;
+    const tease = {from: userKey, text: teaseText.trim(), ts: Date.now()};
+    setLocalTeases(prev => [...prev, tease]);
+    const current = roomData?.[`${fk}_teases`] || [];
+    await update({[`${fk}_teases`]: [...current, tease].slice(-20)});
+    setTeaseText("");
+  };
+
+  // Merge Firestore + local, deduplicated
+  const firestoreTeases = roomData?.[`${fk}_teases`] || [];
+  const firestoreTs = new Set(firestoreTeases.map(t => t.ts));
+  const pending = localTeases.filter(t => !firestoreTs.has(t.ts));
+  const allTeases = [...firestoreTeases, ...pending].sort((a, b) => a.ts - b.ts);
+
+  const partnerTeases = allTeases.filter(t => t.from !== userKey);
+  const myRecentTeases = allTeases.filter(t => t.from === userKey).slice(-2);
+  const latestPartnerTease = partnerTeases[partnerTeases.length - 1];
 
   return (
-    <ScreenWrap gradient={C.gradHome}><div style={{position:"relative",overflow:"hidden"}}><GradOrb size={280} top={-50}/>
-    <div style={{padding:"22px 18px 48px",position:"relative",zIndex:1}}>
-      <Hdr title="Daily Question" sub={new Date().toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric"})} back={back} right={<div style={{width:40,height:40,borderRadius:14,background:C.gradRose,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.md}}><ChatTeardrop size={20} color="#fff" weight="fill"/></div>}/>
-      {phase==="gen"&&<div className="fade-rise" style={{textAlign:"center",paddingTop:20}}>
-        <div style={{marginBottom:24,position:"relative",display:"inline-block"}}>
-          <div style={{position:"absolute",inset:-16,borderRadius:"50%",background:"rgba(212,82,106,0.12)",animation:"hbRing1 3s ease-out infinite"}}/>
-          <div style={{width:100,height:100,borderRadius:"50%",background:C.gradRose,display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.xl}}><ChatTeardrop size={48} color="#fff" weight="fill"/></div>
+    <div style={{marginTop: 16}}>
+      {/* Partner's latest tease */}
+      {latestPartnerTease && (
+        <div className="fade-rise" style={{
+          background: C.roseSoft,
+          borderRadius: 14,
+          padding: "11px 14px",
+          marginBottom: 12,
+          border: `1px solid ${C.roseBd}`,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+        }}>
+          <div style={{width: 28, height: 28, borderRadius: "50%", background: C.gradRose, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: LT}}>
+            {partner?.name?.[0]}
+          </div>
+          <div style={{flex: 1}}>
+            <div style={{fontSize: 10, color: C.rose, fontFamily: LT, fontWeight: 700, marginBottom: 3}}>{partner?.name}</div>
+            {latestPartnerTease.emoji
+              ? <span style={{fontSize: 22}}>{latestPartnerTease.emoji}</span>
+              : <span style={{fontSize: 13, color: C.text, fontFamily: PF, fontStyle: "italic"}}>"{latestPartnerTease.text}"</span>
+            }
+          </div>
         </div>
-        <h3 style={{fontFamily:PF,fontSize:24,fontStyle:"italic",fontWeight:400,marginBottom:10,color:C.text}}>Today's question awaits</h3>
-        <p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>A fresh question, just for you two.</p>
-        <Btn onClick={generate}>Get today's question</Btn>
-      </div>}
-      {phase==="answer"&&<div className="fade-rise"><QCard/><Field textarea label={`Your answer, ${me?.name}`} value={ans} onChange={e=>setAns(e.target.value)} placeholder="Be honest — your partner will try to guess this..."/><Btn disabled={!ans.trim()} onClick={async()=>{if(!ans.trim())return;await update({[`${fk}.answers.${userKey}`]:ans.trim()});await addN("qa",`${me?.name} answered today's question`);}}>Lock in my answer →</Btn></div>}
-      {phase==="guess"&&<div className="fade-rise"><QCard/><Card style={{marginBottom:18,background:"rgba(212,82,106,0.06)",border:`1px solid ${C.roseBd}`}}><div style={{fontSize:11,fontWeight:700,color:C.rose,marginBottom:8,fontFamily:LT,display:"flex",alignItems:"center",gap:5}}><CheckCircle size={14} color={C.rose} weight="fill"/>Your answer is locked in</div><div style={{fontSize:15,color:C.text,fontFamily:LT}}>{qa?.answers?.[userKey]}</div></Card>{!qa?.answers?.[pk]&&<Card style={{marginBottom:18,background:"rgba(212,146,42,0.06)",border:`1px solid ${C.goldBd}`}}><div style={{fontSize:13,color:C.gold,fontFamily:LT,display:"flex",alignItems:"center",gap:6}}><Sparkle size={14} color={C.gold}/>{partner?.name} hasn't answered yet — but you can still guess!</div></Card>}<Field textarea label={`What do you think ${partner?.name} said?`} value={guess} onChange={e=>setGuess(e.target.value)} placeholder={`Guess ${partner?.name}'s answer...`}/><Btn disabled={!guess.trim()} onClick={async()=>{if(!guess.trim())return;await update({[`${fk}.guesses.${userKey}`]:guess.trim()});await addN("qa",`${me?.name} guessed your answer`);}}>Submit my guess →</Btn></div>}
-      {phase==="result"&&<div className="fade-rise"><Card elevated style={{marginBottom:22}}><p style={{fontFamily:PF,fontSize:18,fontStyle:"italic",lineHeight:1.65,color:C.text,margin:0}}>"{qa.question}"</p></Card>{[[userKey,me?.name,C.rose,"rgba(212,82,106,0.08)",C.roseBd,pk],[pk,partner?.name,C.gold,"rgba(212,146,42,0.08)",C.goldBd,userKey]].map(([key,name,color,soft,bd,gk])=><Card key={key} style={{background:soft,border:`1px solid ${bd}`,marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>{name}'s answers</div><div style={{marginBottom:12}}><div style={{fontSize:11,color:C.muted,marginBottom:4,fontFamily:LT}}>Their answer:</div><div style={{fontSize:15,color:C.text,fontFamily:LT,lineHeight:1.5}}>{qa?.answers?.[key]||<i style={{color:C.muted}}>Not answered yet</i>}</div></div><div><div style={{fontSize:11,color:C.muted,marginBottom:4,fontFamily:LT}}>{key===userKey?`${partner?.name}'s guess:`:`${me?.name}'s guess:`}</div><div style={{fontSize:15,color:C.text,fontFamily:LT,lineHeight:1.5}}>{qa?.guesses?.[gk]||<i style={{color:C.muted}}>Not guessed yet</i>}</div></div></Card>)}<Btn variant="ghost" onClick={back}>← Back</Btn></div>}
-    </div></div></ScreenWrap>
+      )}
+
+      {/* My sent teases — shown dimly */}
+      {myRecentTeases.length > 0 && (
+        <div style={{display: "flex", gap: 6, justifyContent: "flex-end", marginBottom: 10, flexWrap: "wrap"}}>
+          {myRecentTeases.map((t, i) => (
+            <div key={i} style={{background: "rgba(212,82,106,0.06)", borderRadius: 10, padding: t.emoji ? "5px 7px" : "5px 10px", fontSize: t.emoji ? 16 : 11, color: C.muted, fontFamily: LT, fontStyle: t.text ? "italic" : "normal", border: `1px solid ${C.roseBd}`}}>
+              {t.emoji || `"${t.text}"`}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Emoji bar */}
+      <div style={{background: "rgba(212,82,106,0.04)", borderRadius: 16, padding: "12px 12px 10px", border: `1px solid ${C.roseBd}`, marginBottom: 10}}>
+        <div style={{fontSize: 10, color: C.muted, fontFamily: LT, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8}}>
+          React while they think...
+        </div>
+        <div style={{display: "flex", gap: 6, flexWrap: "wrap"}}>
+          {emojis.map(emoji => (
+            <button
+              key={emoji}
+              onClick={() => sendEmoji(emoji)}
+              style={{
+                fontSize: 20,
+                background: "rgba(255,255,255,0.8)",
+                border: `1px solid ${C.border}`,
+                borderRadius: 10,
+                width: 40,
+                height: 40,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.15s",
+                flexShrink: 0,
+              }}
+              onMouseEnter={e => {e.currentTarget.style.background=C.roseSoft; e.currentTarget.style.transform="scale(1.18)";}}
+              onMouseLeave={e => {e.currentTarget.style.background="rgba(255,255,255,0.8)"; e.currentTarget.style.transform="scale(1)";}}
+              onTouchStart={e => e.currentTarget.style.transform="scale(1.18)"}
+              onTouchEnd={e => e.currentTarget.style.transform="scale(1)"}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Short text tease */}
+      <div style={{display: "flex", gap: 8}}>
+        <input
+          type="text"
+          value={teaseText}
+          onChange={e => setTeaseText(e.target.value)}
+          onKeyPress={e => e.key === "Enter" && sendText()}
+          placeholder={placeholder}
+          maxLength={60}
+          style={{
+            flex: 1,
+            background: "rgba(255,255,255,0.85)",
+            border: `1.5px solid ${C.border}`,
+            borderRadius: 13,
+            padding: "11px 14px",
+            fontFamily: LT,
+            fontSize: 14,
+            color: C.text,
+            outline: "none",
+          }}
+        />
+        <button
+          onClick={sendText}
+          disabled={!teaseText.trim()}
+          style={{
+            width: 44, height: 44,
+            borderRadius: 13,
+            background: teaseText.trim() ? C.gradRose : "rgba(212,82,106,0.08)",
+            border: "none",
+            cursor: teaseText.trim() ? "pointer" : "not-allowed",
+            fontSize: 18,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            transition: "all 0.2s",
+          }}
+        >
+          💬
+        </button>
+      </div>
+    </div>
+  );
+}
+function QAScreen({me, partner, userKey, roomData, update, addN, back}) {
+  const pk = userKey === "A" ? "B" : "A";
+  const fk = `qa_${todayKey()}`;
+  const qa = roomData?.[fk];
+  const [ans, setAns] = useState(qa?.answers?.[userKey] || "");
+  const [guess, setGuess] = useState(qa?.guesses?.[userKey] || "");
+
+  const phase = !qa?.question ? "gen"
+    : !qa?.answers?.[userKey] ? "answer"
+    : !qa?.guesses?.[userKey] ? "guess"
+    : "result";
+
+  const QA_EMOJIS = ["👀","🫣","💭","🤔","💬","✨","🥹","❤️","😏","🙈"];
+
+  const generate = async () => {
+    const q = getDailyQuestion();
+    await update({[fk]: {question: q, answers: {}, guesses: {}, date: todayStr()}});
+  };
+
+  const QCard = () => (
+    <Card elevated gradient="linear-gradient(135deg,rgba(255,228,220,0.99),rgba(255,248,244,0.96))" style={{marginBottom: 22}}>
+      <div style={{fontSize: 11, fontWeight: 700, color: C.rose, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 10, fontFamily: LT, display: "flex", alignItems: "center", gap: 6}}>
+        <ChatTeardrop size={14} color={C.rose} weight="fill"/>Today's question
+      </div>
+      <p style={{fontFamily: PF, fontSize: 20, fontStyle: "italic", lineHeight: 1.65, color: C.text, margin: 0}}>"{qa.question}"</p>
+    </Card>
+  );
+
+  return (
+    <ScreenWrap gradient={C.gradHome}>
+      <div style={{position: "relative", overflow: "hidden"}}>
+        <GradOrb size={280} top={-50}/>
+        <div style={{padding: "22px 18px 48px", position: "relative", zIndex: 1}}>
+          <Hdr
+            title="Daily Question"
+            sub={new Date().toLocaleDateString("en", {weekday: "long", month: "long", day: "numeric"})}
+            back={back}
+            right={<div style={{width: 40, height: 40, borderRadius: 14, background: C.gradRose, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: SHADOWS.md}}><ChatTeardrop size={20} color="#fff" weight="fill"/></div>}
+          />
+
+          {/* GEN */}
+          {phase === "gen" && (
+            <div className="fade-rise" style={{textAlign: "center", paddingTop: 20}}>
+              <div style={{marginBottom: 24, position: "relative", display: "inline-block"}}>
+                <div style={{position: "absolute", inset: -16, borderRadius: "50%", background: "rgba(212,82,106,0.12)", animation: "hbRing1 3s ease-out infinite"}}/>
+                <div style={{width: 100, height: 100, borderRadius: "50%", background: C.gradRose, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: SHADOWS.xl}}>
+                  <ChatTeardrop size={48} color="#fff" weight="fill"/>
+                </div>
+              </div>
+              <h3 style={{fontFamily: PF, fontSize: 24, fontStyle: "italic", fontWeight: 400, marginBottom: 10, color: C.text}}>Today's question awaits</h3>
+              <p style={{color: C.muted, fontSize: 15, lineHeight: 1.75, marginBottom: 36, fontFamily: LT}}>A fresh question, just for you two.</p>
+              <Btn onClick={generate}>Get today's question</Btn>
+            </div>
+          )}
+
+          {/* ANSWER */}
+          {phase === "answer" && (
+            <div className="fade-rise">
+              <QCard/>
+              <Field
+                textarea
+                label={`Your answer, ${me?.name}`}
+                value={ans}
+                onChange={e => setAns(e.target.value)}
+                placeholder="Be honest — your partner will try to guess this..."
+              />
+              <Btn
+                disabled={!ans.trim()}
+                onClick={async () => {
+                  if (!ans.trim()) return;
+                  await update({[`${fk}.answers.${userKey}`]: ans.trim()});
+                  await addN("qa", `${me?.name} answered today's question`);
+                }}
+              >
+                Lock in my answer →
+              </Btn>
+
+              {/* Teases while partner is also answering */}
+              {qa?.answers?.[pk] === undefined && (
+                <TeasePanelLight
+                  userKey={userKey}
+                  partner={partner}
+                  fk={fk}
+                  roomData={roomData}
+                  update={update}
+                  emojis={QA_EMOJIS}
+                  placeholder="Thinking face energy..."
+                />
+              )}
+            </div>
+          )}
+
+          {/* GUESS */}
+          {phase === "guess" && (
+            <div className="fade-rise">
+              <QCard/>
+              <Card style={{marginBottom: 18, background: "rgba(212,82,106,0.06)", border: `1px solid ${C.roseBd}`}}>
+                <div style={{fontSize: 11, fontWeight: 700, color: C.rose, marginBottom: 8, fontFamily: LT, display: "flex", alignItems: "center", gap: 5}}>
+                  <CheckCircle size={14} color={C.rose} weight="fill"/>Your answer is locked in
+                </div>
+                <div style={{fontSize: 15, color: C.text, fontFamily: LT}}>{qa?.answers?.[userKey]}</div>
+              </Card>
+
+              {!qa?.answers?.[pk] && (
+                <Card style={{marginBottom: 18, background: "rgba(212,146,42,0.06)", border: `1px solid ${C.goldBd}`}}>
+                  <div style={{fontSize: 13, color: C.gold, fontFamily: LT, display: "flex", alignItems: "center", gap: 6}}>
+                    <Sparkle size={14} color={C.gold}/>{partner?.name} hasn't answered yet — but you can still guess!
+                  </div>
+                </Card>
+              )}
+
+              <Field
+                textarea
+                label={`What do you think ${partner?.name} said?`}
+                value={guess}
+                onChange={e => setGuess(e.target.value)}
+                placeholder={`Guess ${partner?.name}'s answer...`}
+              />
+              <Btn
+                disabled={!guess.trim()}
+                onClick={async () => {
+                  if (!guess.trim()) return;
+                  await update({[`${fk}.guesses.${userKey}`]: guess.trim()});
+                  await addN("qa", `${me?.name} guessed your answer`);
+                }}
+              >
+                Submit my guess →
+              </Btn>
+
+              {/* Teases while waiting for partner to guess */}
+              {!qa?.guesses?.[pk] && (
+                <TeasePanelLight
+                  userKey={userKey}
+                  partner={partner}
+                  fk={fk}
+                  roomData={roomData}
+                  update={update}
+                  emojis={QA_EMOJIS}
+                  placeholder="I know what you said..."
+                />
+              )}
+            </div>
+          )}
+
+          {/* RESULT */}
+          {phase === "result" && (
+            <div className="fade-rise">
+              <Card elevated style={{marginBottom: 22}}>
+                <p style={{fontFamily: PF, fontSize: 18, fontStyle: "italic", lineHeight: 1.65, color: C.text, margin: 0}}>"{qa.question}"</p>
+              </Card>
+              {[[userKey, me?.name, C.rose, "rgba(212,82,106,0.08)", C.roseBd, pk],
+                [pk, partner?.name, C.gold, "rgba(212,146,42,0.08)", C.goldBd, userKey]
+              ].map(([key, name, color, soft, bd, gk]) => (
+                <Card key={key} style={{background: soft, border: `1px solid ${bd}`, marginBottom: 14}}>
+                  <div style={{fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12, fontFamily: LT}}>{name}'s answers</div>
+                  <div style={{marginBottom: 12}}>
+                    <div style={{fontSize: 11, color: C.muted, marginBottom: 4, fontFamily: LT}}>Their answer:</div>
+                    <div style={{fontSize: 15, color: C.text, fontFamily: LT, lineHeight: 1.5}}>{qa?.answers?.[key] || <i style={{color: C.muted}}>Not answered yet</i>}</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize: 11, color: C.muted, marginBottom: 4, fontFamily: LT}}>{key === userKey ? `${partner?.name}'s guess:` : `${me?.name}'s guess:`}</div>
+                    <div style={{fontSize: 15, color: C.text, fontFamily: LT, lineHeight: 1.5}}>{qa?.guesses?.[gk] || <i style={{color: C.muted}}>Not guessed yet</i>}</div>
+                  </div>
+                </Card>
+              ))}
+
+              {/* React to results */}
+              <TeasePanelLight
+                userKey={userKey}
+                partner={partner}
+                fk={fk}
+                roomData={roomData}
+                update={update}
+                emojis={QA_EMOJIS}
+                placeholder="React to their answer..."
+              />
+
+              <div style={{marginTop: 16}}>
+                <Btn variant="ghost" onClick={back}>← Back</Btn>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </ScreenWrap>
   );
 }
 
@@ -2616,34 +2919,218 @@ function NHIE({me,partner,userKey,roomData,update,addN,back}){
   );
 }
 
-function TruthOrDare({me,partner,userKey,roomData,update,addN,back}){
-  const tord=roomData?.tord;
-  const [spicy,setSpicy]=useState(false);
+function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
+  const tord = roomData?.tord;
+  const [spicy, setSpicy] = useState(false);
 
-  const pick=async type=>{
-    const content=type==="truth"?getTruthQuestion(spicy):getDare(spicy);
-    await update({tord:{type,content,done:false,spicy}});
-    await addN("tord",`${me?.name} picked a ${type}${spicy?" 🔥":""}`);
+  const TOD_EMOJIS = ["👀","🫣","😏","🎭","🙈","🔥","😈","💀","😤","🤭"];
+  const TOD_EMOJIS_SPICY = ["🍆","🍑","💦","🔥","😈","🫦","💋","🥵","😏","❤️‍🔥"];
+
+  const pick = async type => {
+    const content = type === "truth" ? getTruthQuestion(spicy) : getDare(spicy);
+    await update({tord: {type, content, done: false, spicy, teases: [], startedAt: Date.now()}});
+    await addN("tord", `${me?.name} picked a ${type}${spicy ? " 🔥" : ""}`);
   };
 
-  return (
-    <ScreenWrap gradient={spicy?"linear-gradient(180deg,#2A0F08 0%,#3D1A12 30%,#FFF6F3 100%)":C.gradPlay}><div style={{position:"relative",overflow:"hidden"}}>{!spicy&&<GradOrb size={280} top={-50} color1="rgba(139,107,173,0.22)" color2="rgba(180,150,220,0.08)"/>}
-    <div style={{padding:"22px 18px 48px",position:"relative",zIndex:1}}>
-      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:26}}>
-        <BackBtn onClick={back}/>
-        <div style={{flex:1}}><h2 style={{fontFamily:PF,fontSize:22,fontWeight:400,fontStyle:"italic",color:spicy?"#FAF0E8":C.text}}>Truth or Dare</h2></div>
-        <button onClick={()=>setSpicy(s=>!s)} style={{background:spicy?"rgba(255,160,80,0.18)":"rgba(255,255,255,0.75)",border:`1px solid ${spicy?"rgba(255,160,80,0.35)":C.border}`,borderRadius:20,padding:"7px 14px",cursor:"pointer",fontFamily:LT,fontSize:12,fontWeight:700,color:spicy?"#E8A080":C.muted,backdropFilter:"blur(8px)",display:"flex",alignItems:"center",gap:6,transition:"all 0.25s"}}><Fire size={14} color={spicy?"#E8A080":C.muted} weight={spicy?"fill":"regular"}/>{spicy?"Spicy on":"Spicy"}</button>
-        <div style={{width:40,height:40,borderRadius:14,background:spicy?"linear-gradient(135deg,#2A0F08,#8B2A1A)":"linear-gradient(135deg,#B0A0E0,#8B6BAD)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.md}}><MaskHappy size={20} color="#fff" weight="fill"/></div>
+  // Tease helpers for ToD — uses tord.teases directly
+  const [teaseText, setTeaseText] = useState("");
+  const [localTeases, setLocalTeases] = useState([]);
+
+  useEffect(() => { setLocalTeases([]); }, [tord?.startedAt]);
+
+  const sendEmoji = async (emoji) => {
+    const tease = {from: userKey, emoji, ts: Date.now()};
+    setLocalTeases(prev => [...prev, tease]);
+    const current = tord?.teases || [];
+    await update({["tord.teases"]: [...current, tease].slice(-20)});
+  };
+
+  const sendText = async () => {
+    if (!teaseText.trim()) return;
+    const tease = {from: userKey, text: teaseText.trim(), ts: Date.now()};
+    setLocalTeases(prev => [...prev, tease]);
+    const current = tord?.teases || [];
+    await update({["tord.teases"]: [...current, tease].slice(-20)});
+    setTeaseText("");
+  };
+
+  const firestoreTeases = tord?.teases || [];
+  const firestoreTs = new Set(firestoreTeases.map(t => t.ts));
+  const pending = localTeases.filter(t => !firestoreTs.has(t.ts));
+  const allTeases = [...firestoreTeases, ...pending].sort((a, b) => a.ts - b.ts);
+  const partnerTeases = allTeases.filter(t => t.from !== userKey);
+  const myRecentTeases = allTeases.filter(t => t.from === userKey).slice(-2);
+  const latestPartnerTease = partnerTeases[partnerTeases.length - 1];
+
+  const activeEmojis = tord?.spicy ? TOD_EMOJIS_SPICY : TOD_EMOJIS;
+
+  const TeasePanelToD = () => (
+    <div style={{marginTop: 16}}>
+      {/* Partner's latest tease */}
+      {latestPartnerTease && (
+        <div className="fade-rise" style={{
+          background: tord?.spicy ? "rgba(212,82,106,0.12)" : C.roseSoft,
+          borderRadius: 14,
+          padding: "11px 14px",
+          marginBottom: 12,
+          border: `1px solid ${tord?.spicy ? "rgba(212,82,106,0.25)" : C.roseBd}`,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+        }}>
+          <div style={{width: 28, height: 28, borderRadius: "50%", background: tord?.spicy ? "linear-gradient(135deg,#8B2A1A,#C4522A)" : C.gradRose, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: LT}}>
+            {partner?.name?.[0]}
+          </div>
+          <div style={{flex: 1}}>
+            <div style={{fontSize: 10, color: tord?.spicy ? "#E8A080" : C.rose, fontFamily: LT, fontWeight: 700, marginBottom: 3}}>{partner?.name}</div>
+            {latestPartnerTease.emoji
+              ? <span style={{fontSize: 22}}>{latestPartnerTease.emoji}</span>
+              : <span style={{fontSize: 13, color: tord?.spicy ? "#FAF0E8" : C.text, fontFamily: PF, fontStyle: "italic"}}>"{latestPartnerTease.text}"</span>
+            }
+          </div>
+        </div>
+      )}
+
+      {/* My sent teases */}
+      {myRecentTeases.length > 0 && (
+        <div style={{display: "flex", gap: 6, justifyContent: "flex-end", marginBottom: 10, flexWrap: "wrap"}}>
+          {myRecentTeases.map((t, i) => (
+            <div key={i} style={{background: tord?.spicy ? "rgba(255,255,255,0.07)" : "rgba(212,82,106,0.06)", borderRadius: 10, padding: t.emoji ? "5px 7px" : "5px 10px", fontSize: t.emoji ? 16 : 11, color: tord?.spicy ? "rgba(250,240,232,0.5)" : C.muted, fontFamily: LT, fontStyle: t.text ? "italic" : "normal", border: `1px solid ${tord?.spicy ? "rgba(255,255,255,0.08)" : C.roseBd}`}}>
+              {t.emoji || `"${t.text}"`}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Emoji bar */}
+      <div style={{background: tord?.spicy ? "rgba(255,255,255,0.04)" : "rgba(212,82,106,0.04)", borderRadius: 16, padding: "12px 12px 10px", border: `1px solid ${tord?.spicy ? "rgba(255,255,255,0.07)" : C.roseBd}`, marginBottom: 10}}>
+        <div style={{fontSize: 10, color: tord?.spicy ? "rgba(250,240,232,0.35)" : C.muted, fontFamily: LT, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8}}>
+          React while they do it...
+        </div>
+        <div style={{display: "flex", gap: 6, flexWrap: "wrap"}}>
+          {activeEmojis.map(emoji => (
+            <button
+              key={emoji}
+              onClick={() => sendEmoji(emoji)}
+              style={{fontSize: 20, background: tord?.spicy ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.8)", border: `1px solid ${tord?.spicy ? "rgba(255,255,255,0.08)" : C.border}`, borderRadius: 10, width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s", flexShrink: 0}}
+              onMouseEnter={e => {e.currentTarget.style.transform="scale(1.18)"; e.currentTarget.style.background=tord?.spicy?"rgba(212,82,106,0.25)":C.roseSoft;}}
+              onMouseLeave={e => {e.currentTarget.style.transform="scale(1)"; e.currentTarget.style.background=tord?.spicy?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.8)";}}
+              onTouchStart={e => e.currentTarget.style.transform="scale(1.18)"}
+              onTouchEnd={e => e.currentTarget.style.transform="scale(1)"}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
       </div>
-      {!tord?.type?(<div className="fade-rise"><div style={{textAlign:"center",paddingTop:8,marginBottom:28}}><div style={{marginBottom:14,display:"inline-flex",alignItems:"center",justifyContent:"center",width:80,height:80,borderRadius:"50%",background:spicy?"linear-gradient(135deg,#2A0F08,#8B2A1A)":"linear-gradient(135deg,#B0A0E0,#8B6BAD)",boxShadow:SHADOWS.xl}} className="hb-float"><MaskHappy size={40} color="#fff" weight="fill"/></div><p style={{color:spicy?"rgba(250,240,232,0.6)":C.muted,fontSize:15,lineHeight:1.7,fontFamily:LT}}>What will it be?</p></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-        <button onClick={()=>pick("truth")} className="card-hover" style={{background:spicy?"rgba(250,240,232,0.08)":"rgba(212,82,106,0.06)",border:`2px solid ${spicy?"rgba(250,240,232,0.15)":C.roseBd}`,borderRadius:22,padding:"28px 14px",cursor:"pointer",fontFamily:LT,textAlign:"center",boxShadow:SHADOWS.md}}><div style={{width:48,height:48,borderRadius:16,background:spicy?"rgba(250,240,232,0.15)":C.gradRose,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",boxShadow:SHADOWS.sm}}><ChatTeardrop size={24} color={spicy?"#FAF0E8":"#fff"} weight="fill"/></div><div style={{fontSize:17,fontWeight:700,color:spicy?"#E8C0A0":C.rose,fontFamily:PF,fontStyle:"italic"}}>Truth</div></button>
-        <button onClick={()=>pick("dare")} className="card-hover" style={{background:spicy?"rgba(250,240,232,0.08)":"rgba(212,146,42,0.06)",border:`2px solid ${spicy?"rgba(250,240,232,0.15)":C.goldBd}`,borderRadius:22,padding:"28px 14px",cursor:"pointer",fontFamily:LT,textAlign:"center",boxShadow:SHADOWS.md}}><div style={{width:48,height:48,borderRadius:16,background:spicy?"rgba(250,240,232,0.15)":C.gradGold,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",boxShadow:SHADOWS.sm}}><Fire size={24} color={spicy?"#FAF0E8":"#fff"} weight="fill"/></div><div style={{fontSize:17,fontWeight:700,color:spicy?"#E8C0A0":C.gold,fontFamily:PF,fontStyle:"italic"}}>Dare</div></button>
-      </div></div>):(
-      <div className="fade-rise"><Card elevated layer gradient={tord.spicy?"linear-gradient(145deg,rgba(42,15,8,0.96),rgba(80,25,15,0.91))":tord.type==="truth"?"linear-gradient(135deg,rgba(212,82,106,0.08),rgba(255,200,180,0.12))":"linear-gradient(135deg,rgba(212,146,42,0.08),rgba(255,220,140,0.12))"} style={{marginBottom:20,textAlign:"center"}}><div style={{fontSize:11,fontWeight:700,color:tord.spicy?"#E8A080":tord.type==="truth"?C.rose:C.gold,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:16,fontFamily:LT,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{tord.type==="truth"?<ChatTeardrop size={14} color={tord.spicy?"#E8A080":C.rose} weight="fill"/>:<Fire size={14} color={tord.spicy?"#E8A080":C.gold} weight="fill"/>}{tord.type==="truth"?"Truth":"Dare"}{tord.spicy?" — Spicy":""}</div><p style={{fontFamily:PF,fontSize:19,fontStyle:"italic",color:tord.spicy?"#FAF0E8":C.text,lineHeight:1.65,margin:0}}>{tord.content}</p></Card>
-      {!tord.done?(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Btn onClick={async()=>await update({tord:{...tord,done:true}})}>Done!</Btn><Btn variant="ghost" onClick={async()=>await update({tord:null})}>Skip →</Btn></div>):(<div><Card gradient="linear-gradient(135deg,rgba(107,143,113,0.10),rgba(144,196,152,0.08))" style={{textAlign:"center",marginBottom:16,border:`1px solid ${C.sageBd}`}}><CheckCircle size={32} color={C.sage} weight="fill" style={{marginBottom:8}}/><div style={{fontWeight:700,color:C.sage,fontFamily:LT}}>Challenge completed!</div></Card><Btn variant="outline" onClick={async()=>await update({tord:null})}>Pick another →</Btn></div>)}
-      </div>)}
-    </div></div></ScreenWrap>
+
+      {/* Text tease */}
+      <div style={{display: "flex", gap: 8}}>
+        <input
+          type="text"
+          value={teaseText}
+          onChange={e => setTeaseText(e.target.value)}
+          onKeyPress={e => e.key === "Enter" && sendText()}
+          placeholder={tord?.spicy ? "Say something cheeky..." : "React to their turn..."}
+          maxLength={60}
+          style={{flex: 1, background: tord?.spicy ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.85)", border: `1.5px solid ${tord?.spicy ? "rgba(255,255,255,0.10)" : C.border}`, borderRadius: 13, padding: "11px 14px", fontFamily: LT, fontSize: 14, color: tord?.spicy ? "#FAF0E8" : C.text, outline: "none"}}
+        />
+        <button
+          onClick={sendText}
+          disabled={!teaseText.trim()}
+          style={{width: 44, height: 44, borderRadius: 13, background: teaseText.trim() ? (tord?.spicy ? "linear-gradient(135deg,#8B2A1A,#C4522A)" : C.gradRose) : "rgba(212,82,106,0.08)", border: "none", cursor: teaseText.trim() ? "pointer" : "not-allowed", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s"}}
+        >
+          💬
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <ScreenWrap gradient={spicy ? "linear-gradient(180deg,#2A0F08 0%,#3D1A12 30%,#FFF6F3 100%)" : C.gradPlay}>
+      <div style={{position: "relative", overflow: "hidden"}}>
+        {!spicy && <GradOrb size={280} top={-50} color1="rgba(139,107,173,0.22)" color2="rgba(180,150,220,0.08)"/>}
+        <div style={{padding: "22px 18px 48px", position: "relative", zIndex: 1}}>
+
+          {/* Header */}
+          <div style={{display: "flex", alignItems: "center", gap: 12, marginBottom: 26}}>
+            <BackBtn onClick={back}/>
+            <div style={{flex: 1}}>
+              <h2 style={{fontFamily: PF, fontSize: 22, fontWeight: 400, fontStyle: "italic", color: spicy ? "#FAF0E8" : C.text}}>Truth or Dare</h2>
+            </div>
+            <button onClick={() => setSpicy(s => !s)} style={{background: spicy ? "rgba(255,160,80,0.18)" : "rgba(255,255,255,0.75)", border: `1px solid ${spicy ? "rgba(255,160,80,0.35)" : C.border}`, borderRadius: 20, padding: "7px 14px", cursor: "pointer", fontFamily: LT, fontSize: 12, fontWeight: 700, color: spicy ? "#E8A080" : C.muted, backdropFilter: "blur(8px)", display: "flex", alignItems: "center", gap: 6, transition: "all 0.25s"}}>
+              <Fire size={14} color={spicy ? "#E8A080" : C.muted} weight={spicy ? "fill" : "regular"}/>{spicy ? "Spicy on" : "Spicy"}
+            </button>
+            <div style={{width: 40, height: 40, borderRadius: 14, background: spicy ? "linear-gradient(135deg,#2A0F08,#8B2A1A)" : "linear-gradient(135deg,#B0A0E0,#8B6BAD)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: SHADOWS.md}}>
+              <MaskHappy size={20} color="#fff" weight="fill"/>
+            </div>
+          </div>
+
+          {/* PICK SCREEN */}
+          {!tord?.type && (
+            <div className="fade-rise">
+              <div style={{textAlign: "center", paddingTop: 8, marginBottom: 28}}>
+                <div style={{marginBottom: 14, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 80, height: 80, borderRadius: "50%", background: spicy ? "linear-gradient(135deg,#2A0F08,#8B2A1A)" : "linear-gradient(135deg,#B0A0E0,#8B6BAD)", boxShadow: SHADOWS.xl}} className="hb-float">
+                  <MaskHappy size={40} color="#fff" weight="fill"/>
+                </div>
+                <p style={{color: spicy ? "rgba(250,240,232,0.6)" : C.muted, fontSize: 15, lineHeight: 1.7, fontFamily: LT}}>What will it be?</p>
+              </div>
+              <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16}}>
+                <button onClick={() => pick("truth")} className="card-hover" style={{background: spicy ? "rgba(250,240,232,0.08)" : "rgba(212,82,106,0.06)", border: `2px solid ${spicy ? "rgba(250,240,232,0.15)" : C.roseBd}`, borderRadius: 22, padding: "28px 14px", cursor: "pointer", fontFamily: LT, textAlign: "center", boxShadow: SHADOWS.md}}>
+                  <div style={{width: 48, height: 48, borderRadius: 16, background: spicy ? "rgba(250,240,232,0.15)" : C.gradRose, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", boxShadow: SHADOWS.sm}}>
+                    <ChatTeardrop size={24} color={spicy ? "#FAF0E8" : "#fff"} weight="fill"/>
+                  </div>
+                  <div style={{fontSize: 17, fontWeight: 700, color: spicy ? "#E8C0A0" : C.rose, fontFamily: PF, fontStyle: "italic"}}>Truth</div>
+                </button>
+                <button onClick={() => pick("dare")} className="card-hover" style={{background: spicy ? "rgba(250,240,232,0.08)" : "rgba(212,146,42,0.06)", border: `2px solid ${spicy ? "rgba(250,240,232,0.15)" : C.goldBd}`, borderRadius: 22, padding: "28px 14px", cursor: "pointer", fontFamily: LT, textAlign: "center", boxShadow: SHADOWS.md}}>
+                  <div style={{width: 48, height: 48, borderRadius: 16, background: spicy ? "rgba(250,240,232,0.15)" : C.gradGold, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", boxShadow: SHADOWS.sm}}>
+                    <Fire size={24} color={spicy ? "#FAF0E8" : "#fff"} weight="fill"/>
+                  </div>
+                  <div style={{fontSize: 17, fontWeight: 700, color: spicy ? "#E8C0A0" : C.gold, fontFamily: PF, fontStyle: "italic"}}>Dare</div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ACTIVE CHALLENGE */}
+          {tord?.type && (
+            <div className="fade-rise">
+              <Card elevated layer gradient={tord.spicy ? "linear-gradient(145deg,rgba(42,15,8,0.96),rgba(80,25,15,0.91))" : tord.type === "truth" ? "linear-gradient(135deg,rgba(212,82,106,0.08),rgba(255,200,180,0.12))" : "linear-gradient(135deg,rgba(212,146,42,0.08),rgba(255,220,140,0.12))"} style={{marginBottom: 20, textAlign: "center"}}>
+                <div style={{fontSize: 11, fontWeight: 700, color: tord.spicy ? "#E8A080" : tord.type === "truth" ? C.rose : C.gold, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16, fontFamily: LT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6}}>
+                  {tord.type === "truth"
+                    ? <ChatTeardrop size={14} color={tord.spicy ? "#E8A080" : C.rose} weight="fill"/>
+                    : <Fire size={14} color={tord.spicy ? "#E8A080" : C.gold} weight="fill"/>
+                  }
+                  {tord.type === "truth" ? "Truth" : "Dare"}{tord.spicy ? " — Spicy" : ""}
+                </div>
+                <p style={{fontFamily: PF, fontSize: 19, fontStyle: "italic", color: tord.spicy ? "#FAF0E8" : C.text, lineHeight: 1.65, margin: 0}}>
+                  {tord.content}
+                </p>
+              </Card>
+
+              {/* Actions */}
+              {!tord.done
+                ? <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 0}}>
+                    <Btn onClick={async () => await update({tord: {...tord, done: true}})}>Done!</Btn>
+                    <Btn variant="ghost" onClick={async () => await update({tord: null})}>Skip →</Btn>
+                  </div>
+                : <div>
+                    <Card gradient="linear-gradient(135deg,rgba(107,143,113,0.10),rgba(144,196,152,0.08))" style={{textAlign: "center", marginBottom: 16, border: `1px solid ${C.sageBd}`}}>
+                      <CheckCircle size={32} color={C.sage} weight="fill" style={{marginBottom: 8}}/>
+                      <div style={{fontWeight: 700, color: C.sage, fontFamily: LT}}>Challenge completed!</div>
+                    </Card>
+                    <Btn variant="outline" onClick={async () => await update({tord: null})}>Pick another →</Btn>
+                  </div>
+              }
+
+              {/* Live teases */}
+              <TeasePanelToD/>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </ScreenWrap>
   );
 }
 
