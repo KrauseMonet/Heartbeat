@@ -57,8 +57,14 @@ async function callClaude(system, msg) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ system, message: msg }),
   });
-  const d = await r.json();
-  if (!r.ok) throw new Error(d.error || "Claude API failed");
+let d;
+
+try {
+  d = await r.json();
+} catch (e) {
+  console.error("Invalid JSON response from server");
+  throw new Error("Server error. Please try again.");
+}  if (!r.ok) throw new Error(d.error || "Claude API failed");
   return d.text;
 }
 
