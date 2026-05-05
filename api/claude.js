@@ -12,28 +12,34 @@ export default async function handler(req, res) {
         "x-api-key": process.env.ANTHROPIC_KEY,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify({
-model: "claude-3-5-sonnet",
-        max_tokens: 700,
-        system,
-        messages: [{ role: "user", content: message }],
-      }),
-    });
+body: JSON.stringify({
+  model: "claude-3-5-sonnet",
+  max_tokens: 700,
+  system,
+  messages: [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: message }
+      ]
+    }
+  ],
+}),
 
-    const data = await r.json();
-    console.log("Claude raw response:", JSON.stringify(data, null, 2));
+const data = await r.json();
+console.log("Claude raw response:", JSON.stringify(data, null, 2));
+
 if (!r.ok) {
-  console.error("Claude API error:", data);
+  console.error("Claude API error:", JSON.stringify(data, null, 2));
   return res.status(500).json({
     error: "Claude failed",
     details: data
   });
-}const text =
+}
+
+const text =
   data?.content?.[0]?.text ||
   data?.content?.map(c => c.text).join("\n") ||
   "No response generated";
 
-return res.status(200).json({ text });  } catch (e) {
-    return res.status(500).json({ error: e.message });
-  }
-}
+return res.status(200).json({ text });
