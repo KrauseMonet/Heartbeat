@@ -4302,8 +4302,7 @@ function TicTacToe({ me, partner, userKey, roomData, update, addN, back }) {
   const isBestOf5 = game.currentRound >= 5;
   
   const handleClick = async (i) => {
-    if (game.board[i] || boardWinner) return;
-    const newBoard = [...game.board];
+if (!isMyTurn || game.board[i] || boardWinner) return;    const newBoard = [...game.board];
     newBoard[i] = isXNext ? "X" : "O";
     const newWinner = calculateWinner(newBoard);
     
