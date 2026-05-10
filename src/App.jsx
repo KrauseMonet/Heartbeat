@@ -68,6 +68,65 @@ try {
   return d.text;
 }
 
+// ── COUPLE CONTEXT BUILDER ─────────────────────────────────────────────────
+function buildCoupleContext(me, partner, roomData, userKey) {
+  const pk = userKey === "A" ? "B" : "A";
+  const qaEntries = Object.entries(roomData || {})
+    .filter(([k]) => k.startsWith("qa_"))
+    .filter(([_, v]) => v?.answers?.[userKey] && v?.answers?.[pk])
+    .sort(([a], [b]) => b.localeCompare(a))
+    .slice(0, 8);
+
+  const qaHistory = qaEntries.map(([_, v]) =>
+    `Q: ${v.question}\n${me?.name}: ${v.answers[userKey]}\n${partner?.name}: ${v.answers[pk]}`
+  ).join("\n\n");
+
+  const recentCheckins = Object.entries(roomData || {})
+    .filter(([k]) => k.startsWith("checkin_"))
+    .sort(([a], [b]) => b.localeCompare(a))
+    .slice(0, 3)
+    .map(([_, v]) => {
+      const scores = v?.ratings || {};
+      return `Scores: ${JSON.stringify(scores)}. Reflection: ${v?.reflections?.[userKey] || "none"}`;
+    }).join("\n");
+
+  const wyrChoices = Object.entries(roomData || {})
+    .filter(([k]) => k.startsWith("wyr_"))
+    .filter(([_, v]) => v?.choices?.[userKey] && v?.choices?.[pk])
+    .slice(0, 5)
+    .map(([_, v]) => `${me?.name} chose "${v.choices[userKey]==="a"?v.a:v.b}", ${partner?.name} chose "${v.choices[pk]==="a"?v.a:v.b}"`)
+    .join("\n");
+
+  const desireHistory = (roomData?.desireHistory || []).slice(-5)
+    .map(d => `[${d.category}] ${d.prompt}`)
+    .join("\n");
+
+  const bucketDone = (roomData?.bucket || []).filter(i => i.done).map(i => i.text).join(", ");
+
+  return `
+COUPLE PROFILE:
+Names: ${me?.name} & ${partner?.name}
+Together: ${roomData?.anniversary ? Math.floor((Date.now() - new Date(roomData.anniversary)) / 86400000) + " days" : "unknown"}
+Distance: ${roomData?.distance || "unknown"}
+Couple name: ${roomData?.coupleName || "not set"}
+
+RECENT Q&A ANSWERS (last 8):
+${qaHistory || "none yet"}
+
+RECENT CHECK-IN SCORES:
+${recentCheckins || "none yet"}
+
+WOULD YOU RATHER CHOICES:
+${wyrChoices || "none yet"}
+
+DESIRE PROMPTS EXPLORED:
+${desireHistory || "none yet"}
+
+BUCKET LIST COMPLETED:
+${bucketDone || "none yet"}
+`.trim();
+}
+
 // ── CLOUDINARY ─────────────────────────────────────────────────────────────
 async function uploadImage(file) {
   const fd = new FormData();
@@ -321,6 +380,255 @@ function GradOrb({size=320,top=-80,color1="rgba(255,150,130,0.35)",color2="rgba(
 
 function ScreenWrap({gradient,children,pb}){
   return <div style={{minHeight:"100vh",background:gradient||C.gradHome,paddingBottom:pb||100}}>{children}</div>;
+}
+
+// ── PREMIUM LOCK ───────────────────────────────────────────────────────────
+function PremiumLock({feature, children, isPremium, onUpgrade}) {
+  if (isPremium) return children;
+  return (
+    <div style={{position:"relative"}}>
+      <div style={{filter:"blur(2px)", pointerEvents:"none", opacity:0.5}}>
+        {children}
+      </div>
+      <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"rgba(255,246,243,0.85)",backdropFilter:"blur(4px)",borderRadius:20,border:`1px solid ${C.roseBd}`}}>
+        <div style={{fontSize:28,marginBottom:8}}>✨</div>
+        <div style={{fontSize:14,fontWeight:700,color:C.text,fontFamily:LT,marginBottom:4}}>{feature}</div>
+        <div style={{fontSize:12,color:C.muted,fontFamily:LT,marginBottom:16,textAlign:"center",padding:"0 20px"}}>Unlock with Heartbeat Premium</div>
+        <button onClick={onUpgrade} style={{background:C.gradRose,border:"none",borderRadius:14,padding:"10px 24px",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:"#fff",boxShadow:SHADOWS.md}}>
+          Unlock Premium ✨
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── UPGRADE SHEET ──────────────────────────────────────────────────────────
+function UpgradeSheet({onClose, roomId}) {
+  const [billingCycle, setBillingCycle] = useState("yearly");
+  const [payLoading, setPayLoading] = useState(false);
+  const [payError, setPayError] = useState("");
+
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const isIndia = timezone.includes("Calcutta") || timezone.includes("Kolkata") || timezone.includes("Asia/Colombo") || timezone.includes("Asia/Dhaka");
+  const monthlyPrice = isIndia ? "₹149" : "$3.99";
+  const yearlyPrice = isIndia ? "₹999" : "$29.99";
+  const yearlyMonthly = isIndia ? "₹83/month" : "$2.50/month";
+  const yearlySaving = isIndia ? "Save ₹789" : "Save $18";
+  const perPersonText = isIndia
+    ? billingCycle === "yearly" ? "₹42 each per month" : "₹75 each per month"
+    : billingCycle === "yearly" ? "$1.25 each per month" : "$2 each per month";
+
+  const handlePaddle = async () => {
+    setPayLoading(true);
+    setPayError("");
+    try {
+      const res = await fetch('/api/create-paddle-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: billingCycle, roomId }),
+      });
+      const { url } = await res.json();
+      if (url) window.location.href = url;
+      else setPayError("Something went wrong. Try again.");
+    } catch (e) {
+      setPayError("Something went wrong. Try again.");
+    }
+    setPayLoading(false);
+  };
+
+  const handleRazorpay = async () => {
+    setPayLoading(true);
+    setPayError("");
+    try {
+      // 1 — Create order on backend
+      const orderRes = await fetch('/api/create-razorpay-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: billingCycle, roomId }),
+      });
+      const { orderId, amount, currency, error } = await orderRes.json();
+      if (!orderId) { setPayError(error || "Could not start payment. Try again."); setPayLoading(false); return; }
+
+      // 2 — Load Razorpay checkout script if not already loaded
+      await new Promise((resolve, reject) => {
+        if (window.Razorpay) { resolve(); return; }
+        const s = document.createElement('script');
+        s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        s.onload = resolve; s.onerror = reject;
+        document.body.appendChild(s);
+      });
+
+      // 3 — Open checkout modal
+      await new Promise((resolve) => {
+        const rzp = new window.Razorpay({
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+          amount, currency, order_id: orderId,
+          name: 'Heartbeat',
+          description: `Premium — ${billingCycle === 'yearly' ? 'Yearly' : 'Monthly'}`,
+          theme: { color: '#D4526A' },
+          prefill: {},
+          handler: async (response) => {
+            // 4 — Verify signature and grant premium
+            try {
+              const verifyRes = await fetch('/api/verify-razorpay-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  razorpay_order_id:   response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature:  response.razorpay_signature,
+                  roomId, plan: billingCycle,
+                }),
+              });
+              const result = await verifyRes.json();
+              if (result.success) { onClose(); }
+              else { setPayError("Payment received but verification failed. Email hello@heartbeat.app."); }
+            } catch {
+              setPayError("Payment received but verification failed. Email hello@heartbeat.app.");
+            }
+            resolve();
+          },
+          modal: { ondismiss: resolve },
+        });
+        rzp.open();
+      });
+    } catch {
+      setPayError("Payment could not be started. Try again.");
+    }
+    setPayLoading(false);
+  };
+
+  const FEATURES = [
+    {emoji:"🔥", text:"Desire game — unlimited rounds"},
+    {emoji:"🎭", text:"Truth or Dare spicy mode"},
+    {emoji:"✨", text:"AI-generated questions that learn from you"},
+    {emoji:"🎨", text:"Pictionary — real-time drawing game"},
+    {emoji:"📖", text:"Full Q&A & Desire history"},
+    {emoji:"🗓️", text:"Unlimited AI date & outfit planning"},
+  ];
+
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(26,10,5,0.55)",backdropFilter:"blur(6px)",display:"flex",flexDirection:"column",justifyContent:"flex-end"}} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} className="slide-in" style={{background:"linear-gradient(180deg,rgba(255,246,243,0.99) 0%,#fff 100%)",borderRadius:"32px 32px 0 0",padding:"28px 24px 52px",boxShadow:"0 -12px 48px rgba(212,82,106,0.18)",maxHeight:"92vh",overflowY:"auto"}}>
+
+        {/* Handle */}
+        <div style={{width:36,height:4,borderRadius:2,background:"rgba(212,82,106,0.15)",margin:"0 auto 24px"}}/>
+
+        {/* Header */}
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:64,height:64,borderRadius:"50%",background:C.gradRose,boxShadow:SHADOWS.lg,marginBottom:14}} className="hb-float">
+            <Heart size={32} color="#fff" weight="fill"/>
+          </div>
+          <h2 style={{fontFamily:PF,fontSize:26,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:4}}>Heartbeat Premium</h2>
+        </div>
+
+        {/* Billing toggle */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,background:"rgba(212,82,106,0.06)",borderRadius:14,padding:4,marginBottom:20}}>
+          {[["monthly","Monthly"],["yearly","Yearly"]].map(([k,l]) => (
+            <button key={k} onClick={()=>setBillingCycle(k)} style={{padding:"10px 0",borderRadius:11,border:"none",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,background:billingCycle===k?C.surface:"transparent",color:billingCycle===k?C.rose:C.muted,boxShadow:billingCycle===k?SHADOWS.sm:"none",transition:"all 0.2s",position:"relative"}}>
+              {l}
+              {k==="yearly"&&<span style={{position:"absolute",top:-8,right:8,background:C.gradSage,borderRadius:20,padding:"2px 8px",fontSize:9,fontWeight:700,color:"#fff",fontFamily:LT,whiteSpace:"nowrap"}}>{yearlySaving}</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Price display */}
+        <div style={{textAlign:"center",marginBottom:6}}>
+          <div style={{fontSize:36,fontWeight:700,color:C.rose,fontFamily:PF,lineHeight:1}}>
+            {billingCycle==="yearly" ? yearlyPrice : monthlyPrice}
+            <span style={{fontSize:14,fontWeight:400,color:C.muted,fontFamily:LT}}>
+              {billingCycle==="yearly" ? "/year" : "/month"}
+            </span>
+          </div>
+          {billingCycle==="yearly" && (
+            <div style={{fontSize:12,color:C.muted,fontFamily:LT,marginTop:4}}>
+              {yearlyMonthly} — billed once a year
+            </div>
+          )}
+        </div>
+
+        {/* Per person subtext */}
+        <div style={{textAlign:"center",marginBottom:22}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:6,background:C.roseSoft,borderRadius:20,padding:"5px 14px",border:`1px solid ${C.roseBd}`}}>
+            <Heart size={12} color={C.rose} weight="fill"/>
+            <span style={{fontSize:12,fontWeight:700,color:C.rose,fontFamily:LT}}>{perPersonText} — one subscription for both of you</span>
+          </div>
+        </div>
+
+        {/* Features list */}
+        <div style={{marginBottom:20,display:"flex",flexDirection:"column",gap:8}}>
+          {FEATURES.map((f,i) => (
+            <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:C.roseSoft,borderRadius:14,border:`1px solid ${C.roseBd}`}}>
+              <span style={{fontSize:18}}>{f.emoji}</span>
+              <span style={{fontSize:13,color:C.text,fontFamily:LT,fontWeight:500}}>{f.text}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Payment button — India: Razorpay, International: Paddle */}
+        {isIndia ? (
+          <button onClick={handleRazorpay} disabled={payLoading}
+            style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,width:"100%",borderRadius:18,padding:"15px 24px",fontFamily:LT,fontSize:15,fontWeight:700,background:C.gradRose,color:"#fff",border:"none",cursor:payLoading?"not-allowed":"pointer",boxShadow:SHADOWS.lg,marginBottom:12,opacity:payLoading?0.7:1}}>
+            {payLoading
+              ? <><div className="hb-spin"><Sparkle size={16} color="#fff"/></div> Processing...</>
+              : <>Pay {billingCycle==="yearly"?"₹999":"₹149"} — UPI / Card / Net Banking</>
+            }
+          </button>
+        ) : (
+          <button onClick={handlePaddle} disabled={payLoading}
+            style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,width:"100%",borderRadius:18,padding:"15px 24px",fontFamily:LT,fontSize:15,fontWeight:700,background:C.gradRose,color:"#fff",border:"none",cursor:payLoading?"not-allowed":"pointer",boxShadow:SHADOWS.lg,marginBottom:12,opacity:payLoading?0.7:1}}>
+            {payLoading
+              ? <><div className="hb-spin"><Sparkle size={16} color="#fff"/></div> Redirecting...</>
+              : <>Pay {billingCycle==="yearly"?"$29.99":"$3.99"} — Card / PayPal</>
+            }
+          </button>
+        )}
+
+        {/* Payment method badges */}
+        {isIndia
+          ? <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+              {["UPI","Visa","Mastercard","RuPay","Net Banking"].map(p => (
+                <div key={p} style={{background:"rgba(255,255,255,0.8)",borderRadius:8,padding:"4px 8px",fontSize:10,fontWeight:700,color:C.muted,fontFamily:LT,border:`1px solid ${C.border}`}}>{p}</div>
+              ))}
+            </div>
+          : <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+              {["Visa","Mastercard","Amex","PayPal"].map(p => (
+                <div key={p} style={{background:"rgba(255,255,255,0.8)",borderRadius:8,padding:"4px 8px",fontSize:10,fontWeight:700,color:C.muted,fontFamily:LT,border:`1px solid ${C.border}`}}>{p}</div>
+              ))}
+            </div>
+        }
+
+        {/* Error message */}
+        {payError && (
+          <div style={{background:"rgba(212,82,106,0.08)",borderRadius:12,padding:"10px 14px",marginBottom:12,border:`1px solid ${C.roseBd}`,textAlign:"center",fontSize:13,color:C.rose,fontFamily:LT}}>
+            {payError}
+          </div>
+        )}
+
+        {/* Room code */}
+        {roomId && (
+          <div style={{background:"rgba(255,255,255,0.8)",borderRadius:14,padding:"10px 16px",marginBottom:14,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div>
+              <div style={{fontSize:10,color:C.muted,fontFamily:LT,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>Your room code</div>
+              <div style={{fontSize:20,fontWeight:700,color:C.rose,fontFamily:PF,letterSpacing:"0.15em"}}>{roomId}</div>
+            </div>
+            <button onClick={()=>navigator.clipboard.writeText(roomId)} style={{background:C.roseSoft,border:`1px solid ${C.roseBd}`,borderRadius:10,padding:"7px 12px",cursor:"pointer",fontFamily:LT,fontSize:12,fontWeight:700,color:C.rose}}>
+              Copy
+            </button>
+          </div>
+        )}
+
+        {/* Trust note */}
+        <div style={{textAlign:"center",marginBottom:16}}>
+          <div style={{fontSize:11,color:C.muted,fontFamily:LT,lineHeight:1.7}}>
+            Cancel anytime · No hidden fees · One plan for both of you
+          </div>
+        </div>
+
+        <button onClick={onClose} style={{display:"block",width:"100%",background:"none",border:"none",cursor:"pointer",fontFamily:LT,fontSize:13,color:C.muted}}>Maybe later</button>
+      </div>
+    </div>
+  );
 }
 
 // ── ONBOARDING ─────────────────────────────────────────────────────────────
@@ -1075,7 +1383,7 @@ const sendHeart=async()=>{
 // ══════════════════════════════════════════════════════════════════
 // PLAY TAB — hero, category pills, stacked game cards
 // ══════════════════════════════════════════════════════════════════
-function PlayTab({me,partner,userKey,roomData,update,addN,go}){
+function PlayTab({me,partner,userKey,roomData,update,addN,go,isPremium,onUpgrade}){
   const pk=userKey==="A"?"B":"A";
   const today=todayKey();
   const [playMode,setPlayMode]=useState("connect"); // connect|games
@@ -1152,9 +1460,18 @@ function PlayTab({me,partner,userKey,roomData,update,addN,go}){
 
         {/* GAME FEED — stacked large cards */}
         <div style={{padding:"0 16px 20px",position:"relative",zIndex:1,display:"flex",flexDirection:"column",gap:14}}>
-          {filtered.map((g,i)=>(
+          {filtered.map((g,i)=>{
+            const isPremiumFeature = g.key === "desire" || g.key === "pictionary";
+            const handleClick = () => {
+              if (g.key === "desire") {
+                const rounds = roomData?.desireRoundsUsed || 0;
+                if (!isPremium && rounds >= 3) { onUpgrade(); return; }
+              }
+              go(g.key);
+            };
+            return (
             <div key={g.key} className={`s${Math.min(i+1,6)}`}>
-              <button onClick={()=>go(g.key)} style={{
+              <button onClick={handleClick} style={{
                 display:"block",width:"100%",background:g.grad,
                 borderRadius:g.featured?24:20,
                 padding:g.featured?"28px 24px":"22px 20px",
@@ -1176,7 +1493,7 @@ function PlayTab({me,partner,userKey,roomData,update,addN,go}){
                     <div style={{width:g.featured?52:44,height:g.featured?52:44,borderRadius:16,background:"rgba(255,255,255,0.18)",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:14,boxShadow:"0 4px 14px rgba(0,0,0,0.12)"}}>
                       <g.Icon size={g.featured?26:22} color={g.accent||"#fff"} weight="fill"/>
                     </div>
-                    <h3 style={{fontFamily:PF,fontSize:g.featured?22:18,fontStyle:"italic",fontWeight:400,color:g.dark?"#FAF0E8":"#fff",marginBottom:6,lineHeight:1.2}}>{g.title}</h3>
+                    <h3 style={{fontFamily:PF,fontSize:g.featured?22:18,fontStyle:"italic",fontWeight:400,color:g.dark?"#FAF0E8":"#fff",marginBottom:6,lineHeight:1.2}}>{g.title}{isPremiumFeature&&!isPremium&&<span style={{fontSize:12,marginLeft:6,opacity:0.85}}>✨</span>}</h3>
                     <p style={{fontSize:13,color:g.dark?"rgba(250,240,232,0.6)":"rgba(255,255,255,0.75)",fontFamily:LT,lineHeight:1.55}}>{g.desc}</p>
                   </div>
                   <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10,flexShrink:0}}>
@@ -1186,7 +1503,8 @@ function PlayTab({me,partner,userKey,roomData,update,addN,go}){
                 </div>
               </button>
             </div>
-          ))}
+          );
+          })}
         </div>
 
       </div>
@@ -2844,13 +3162,14 @@ function QAHistory({me, partner, userKey, roomData, back}) {
     </ScreenWrap>
   );
 }
-function QAScreen({me, partner, userKey, roomData, update, addN, back}) {
+function QAScreen({me, partner, userKey, roomData, update, addN, back, isPremium, onUpgrade}) {
   const pk = userKey === "A" ? "B" : "A";
   const fk = `qa_${todayKey()}`;
   const qa = roomData?.[fk];
   const [ans, setAns] = useState(qa?.answers?.[userKey] || "");
   const [guess, setGuess] = useState(qa?.guesses?.[userKey] || "");
   const [showHistory, setShowHistory] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const phase = !qa?.question ? "gen"
     : !qa?.answers?.[userKey] ? "answer"
@@ -2915,6 +3234,21 @@ function QAScreen({me, partner, userKey, roomData, update, addN, back}) {
               <h3 style={{fontFamily: PF, fontSize: 24, fontStyle: "italic", fontWeight: 400, marginBottom: 10, color: C.text}}>Today's question awaits</h3>
               <p style={{color: C.muted, fontSize: 15, lineHeight: 1.75, marginBottom: 36, fontFamily: LT}}>A fresh question, just for you two.</p>
               <Btn onClick={generate}>Get today's question</Btn>
+              {isPremium && (
+                <button onClick={async () => {
+                  setAiLoading(true);
+                  try {
+                    const context = buildCoupleContext(me, partner, roomData, userKey);
+                    const system = `You are a thoughtful relationship question generator for couples. Generate one single intimate, specific question that will spark a meaningful conversation. The question should feel personal to THIS couple based on their history. Return only the question, no preamble, no quotes.`;
+                    const msg = `Generate a fresh daily question for this couple. Make it feel personal to them, referencing their situation where natural.\n\n${context}`;
+                    const q = await callClaude(system, msg);
+                    await update({[fk]: {question: q, answers: {}, guesses: {}, date: todayStr(), aiGenerated: true}});
+                  } catch(e) { console.error(e); }
+                  setAiLoading(false);
+                }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",borderRadius:18,padding:"13px 24px",fontFamily:LT,fontSize:14,fontWeight:700,background:"rgba(212,82,106,0.08)",border:`1px solid ${C.roseBd}`,cursor:"pointer",color:C.rose,marginTop:10}}>
+                  {aiLoading ? <><div className="hb-spin"><Sparkle size={16} color={C.rose}/></div> Generating...</> : <><Sparkle size={16} color={C.rose} weight="fill"/> Generate personalised question ✨</>}
+                </button>
+              )}
             </div>
           )}
 
@@ -3008,10 +3342,12 @@ function QAScreen({me, partner, userKey, roomData, update, addN, back}) {
   );
 }
 
-function WYRScreen({me,partner,userKey,roomData,update,addN,back}){
+function WYRScreen({me,partner,userKey,roomData,update,addN,back,isPremium,onUpgrade}){
   const pk=userKey==="A"?"B":"A";
   const fk=`wyr_${todayKey()}`;
   const wyr=roomData?.[fk];
+
+  const [wyrAiLoading, setWyrAiLoading] = useState(false);
 
   const generate=async()=>{
     const pair=getDailyWYR();
@@ -3038,6 +3374,22 @@ function WYRScreen({me,partner,userKey,roomData,update,addN,back}){
         </div>
         <p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>No obvious right answer — just interesting choices.</p>
         <Btn variant="gold" onClick={generate}>Get today's dilemma</Btn>
+        {isPremium && (
+          <button onClick={async () => {
+            setWyrAiLoading(true);
+            try {
+              const context = buildCoupleContext(me, partner, roomData, userKey);
+              const system = `Generate one Would You Rather pair for this couple. Return JSON only: {"a": "option a", "b": "option b"}. Make it personal and interesting based on their history.`;
+              const msg = `Generate a personalised Would You Rather for this couple.\n\n${context}`;
+              const raw = await callClaude(system, msg);
+              const pair = JSON.parse(raw.match(/\{[\s\S]*\}/)[0]);
+              await update({[fk]:{a:pair.a,b:pair.b,choices:{}}});
+            } catch(e) { console.error(e); }
+            setWyrAiLoading(false);
+          }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",borderRadius:18,padding:"13px 24px",fontFamily:LT,fontSize:14,fontWeight:700,background:"rgba(212,146,42,0.08)",border:`1px solid ${C.goldBd}`,cursor:"pointer",color:C.gold,marginTop:10}}>
+            {wyrAiLoading ? <><div className="hb-spin"><Sparkle size={16} color={C.gold}/></div> Generating...</> : <><Sparkle size={16} color={C.gold} weight="fill"/> Generate personalised dilemma ✨</>}
+          </button>
+        )}
       </div>):(<div className="fade-rise">
         <p style={{fontFamily:PF,fontSize:20,fontStyle:"italic",color:C.muted,textAlign:"center",marginBottom:24}}>Would you rather...</p>
         {opts.map(opt=>{ const chosen=mine===opt.key,pp=theirs===opt.key; return <button key={opt.key} onClick={()=>!mine&&choose(opt.key)} className="card-hover" style={{display:"block",width:"100%",background:chosen?opt.soft:"rgba(255,255,255,0.93)",border:`2px solid ${chosen?opt.color:"rgba(255,255,255,0.92)"}`,borderRadius:22,padding:22,textAlign:"left",cursor:mine?"default":"pointer",fontFamily:LT,marginBottom:14,boxShadow:chosen?SHADOWS.lg:SHADOWS.md}}><div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}><div style={{width:32,height:32,borderRadius:10,background:opt.grad,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:SHADOWS.sm,fontSize:10,fontWeight:700,color:"#fff",fontFamily:LT}}>{opt.label.split(" ")[1]}</div><div style={{fontSize:11,fontWeight:700,color:opt.color,textTransform:"uppercase",letterSpacing:"0.09em"}}>{opt.label}</div></div><div style={{fontFamily:PF,fontSize:19,fontStyle:"italic",color:C.text,lineHeight:1.55}}>{opt.text}</div>{both&&<div style={{marginTop:12,display:"flex",gap:8,flexWrap:"wrap"}}>{chosen&&<span style={{fontSize:11,fontWeight:700,color:opt.color,background:opt.soft,padding:"4px 10px",borderRadius:20,border:`1px solid ${opt.bd}`,fontFamily:LT}}>✓ {me?.name}</span>}{pp&&<span style={{fontSize:11,fontWeight:700,color:opt.color,background:opt.soft,padding:"4px 10px",borderRadius:20,border:`1px solid ${opt.bd}`,fontFamily:LT}}>✓ {partner?.name}</span>}</div>}</button>; })}
@@ -3049,10 +3401,12 @@ function WYRScreen({me,partner,userKey,roomData,update,addN,back}){
   );
 }
 
-function NHIE({me,partner,userKey,roomData,update,addN,back}){
+function NHIE({me,partner,userKey,roomData,update,addN,back,isPremium,onUpgrade}){
   const pk=userKey==="A"?"B":"A";
   const fk=`ninh_${todayKey()}`;
   const ninh=roomData?.[fk];
+
+  const [nhieAiLoading, setNhieAiLoading] = useState(false);
 
   const generate=async()=>{
     const statements=getNHIESet(false).map(t=>({text:t,A:null,B:null}));
@@ -3075,6 +3429,22 @@ function NHIE({me,partner,userKey,roomData,update,addN,back}){
         <div style={{marginBottom:24,display:"inline-flex",alignItems:"center",justifyContent:"center",width:100,height:100,borderRadius:"50%",background:C.gradSage,boxShadow:SHADOWS.xl}}><HandPointing size={48} color="#fff" weight="fill"/></div>
         <p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>5 statements. Have or never?</p>
         <Btn variant="sage" onClick={generate}>Get statements</Btn>
+        {isPremium && (
+          <button onClick={async () => {
+            setNhieAiLoading(true);
+            try {
+              const context = buildCoupleContext(me, partner, roomData, userKey);
+              const system = `Generate 5 Never Have I Ever statements for this couple. Return a JSON array of strings only. Make them personal and interesting based on their history.`;
+              const msg = `Generate personalised Never Have I Ever statements for this couple.\n\n${context}`;
+              const raw = await callClaude(system, msg);
+              const stmts = JSON.parse(raw.match(/\[[\s\S]*\]/)[0]);
+              await update({[fk]:{statements: stmts.slice(0,5).map(t=>({text:t,A:null,B:null}))}});
+            } catch(e) { console.error(e); }
+            setNhieAiLoading(false);
+          }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",borderRadius:18,padding:"13px 24px",fontFamily:LT,fontSize:14,fontWeight:700,background:"rgba(107,143,113,0.08)",border:`1px solid ${C.sageBd}`,cursor:"pointer",color:C.sage,marginTop:10}}>
+            {nhieAiLoading ? <><div className="hb-spin"><Sparkle size={16} color={C.sage}/></div> Generating...</> : <><Sparkle size={16} color={C.sage} weight="fill"/> Generate personalised statements ✨</>}
+          </button>
+        )}
       </div>):(
       <div className="fade-rise">
         {ninh.statements.map((s,i)=><Card key={i} elevated style={{marginBottom:12}} className={`s${Math.min(i+1,6)}`}><div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:8,fontFamily:LT,display:"flex",alignItems:"center",gap:5}}><Star size={12} color={C.muted} weight="fill"/>Statement {i+1}</div><p style={{fontSize:14,color:C.text,marginBottom:14,lineHeight:1.55,fontFamily:LT}}>{s.text}</p>{!s[userKey]?(<div style={{display:"flex",gap:10}}><button onClick={()=>vote(i,"have")} className="card-hover" style={{flex:1,padding:"11px",borderRadius:14,border:"none",background:"linear-gradient(135deg,rgba(107,143,113,0.15),rgba(144,196,152,0.10))",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:C.sage,boxShadow:SHADOWS.sm}}>I have</button><button onClick={()=>vote(i,"never")} className="card-hover" style={{flex:1,padding:"11px",borderRadius:14,border:"none",background:"rgba(212,82,106,0.08)",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:C.rose,boxShadow:SHADOWS.sm}}>Never</button></div>):(<div style={{display:"flex",flexWrap:"wrap",gap:8}}>{[[userKey,me?.name],[pk,partner?.name]].map(([key,name])=>s[key]?<span key={key} style={{fontSize:11,fontWeight:700,padding:"5px 12px",borderRadius:20,background:s[key]==="have"?C.sageSoft:C.roseSoft,color:s[key]==="have"?C.sage:C.rose,border:`1px solid ${s[key]==="have"?C.sageBd:C.roseBd}`,fontFamily:LT}}>{name}: {s[key]==="have"?"Have":"Never"}</span>:<span key={key} style={{fontSize:11,color:C.muted,fontStyle:"italic",fontFamily:LT}}>⏳ {name}...</span>)}</div>)}</Card>)}
@@ -3187,9 +3557,10 @@ function TeasePanelToD({userKey, partner, tordTeases, tordSpicy, update}) {
     </div>
   );
 }
-function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
+function TruthOrDare({me, partner, userKey, roomData, update, addN, back, isPremium, onUpgrade}) {
   const tord = roomData?.tord;
   const [spicy, setSpicy] = useState(false);
+  const [todAiLoading, setTodAiLoading] = useState(false);
 
   const pick = async type => {
     const content = type === "truth" ? getTruthQuestion(spicy) : getDare(spicy);
@@ -3209,7 +3580,7 @@ function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
               <h2 style={{fontFamily: PF, fontSize: 22, fontWeight: 400, fontStyle: "italic", color: spicy ? "#FAF0E8" : C.text}}>Truth or Dare</h2>
             </div>
             <button onClick={() => setSpicy(s => !s)} style={{background: spicy ? "rgba(255,160,80,0.18)" : "rgba(255,255,255,0.75)", border: `1px solid ${spicy ? "rgba(255,160,80,0.35)" : C.border}`, borderRadius: 20, padding: "7px 14px", cursor: "pointer", fontFamily: LT, fontSize: 12, fontWeight: 700, color: spicy ? "#E8A080" : C.muted, backdropFilter: "blur(8px)", display: "flex", alignItems: "center", gap: 6, transition: "all 0.25s"}}>
-              <Fire size={14} color={spicy ? "#E8A080" : C.muted} weight={spicy ? "fill" : "regular"}/>{spicy ? "Spicy on" : "Spicy"}
+              <Fire size={14} color={spicy ? "#E8A080" : C.muted} weight={spicy ? "fill" : "regular"}/>{spicy ? "Spicy on" : "Spicy"}<span style={{fontSize:10,opacity:0.7}}>✨</span>
             </button>
             <div style={{width: 40, height: 40, borderRadius: 14, background: spicy ? "linear-gradient(135deg,#2A0F08,#8B2A1A)" : "linear-gradient(135deg,#B0A0E0,#8B6BAD)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: SHADOWS.md}}>
               <MaskHappy size={20} color="#fff" weight="fill"/>
@@ -3239,6 +3610,23 @@ function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
                   <div style={{fontSize: 17, fontWeight: 700, color: spicy ? "#E8C0A0" : C.gold, fontFamily: PF, fontStyle: "italic"}}>Dare</div>
                 </button>
               </div>
+              {isPremium && (
+                <button onClick={async () => {
+                  setTodAiLoading(true);
+                  try {
+                    const context = buildCoupleContext(me, partner, roomData, userKey);
+                    const type = spicy ? "spicy truth" : "truth";
+                    const system = `Generate one ${type} question for this couple. Return only the question/dare, no preamble.`;
+                    const msg = `Generate a personalised truth question for this couple based on their history.\n\n${context}`;
+                    const content = await callClaude(system, msg);
+                    await update({tord: {type:"truth", content, done:false, spicy, teases:[], startedAt:Date.now(), aiGenerated:true}});
+                    await addN("tord", `${me?.name} got an AI truth ✨`);
+                  } catch(e) { console.error(e); }
+                  setTodAiLoading(false);
+                }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",borderRadius:18,padding:"13px 24px",fontFamily:LT,fontSize:14,fontWeight:700,background:spicy?"rgba(255,255,255,0.06)":"rgba(212,82,106,0.08)",border:`1px solid ${spicy?"rgba(255,255,255,0.12)":C.roseBd}`,cursor:"pointer",color:spicy?"#E8C0A0":C.rose,marginTop:14}}>
+                  {todAiLoading ? <><div className="hb-spin"><Sparkle size={16} color={spicy?"#E8C0A0":C.rose}/></div> Generating...</> : <><Sparkle size={16} color={spicy?"#E8C0A0":C.rose} weight="fill"/> AI personalised truth ✨</>}
+                </button>
+              )}
             </div>
           )}
 
@@ -3969,7 +4357,7 @@ function DesireHistory({me, partner, userKey, roomData, back}) {
     </div>
   );
 }
-function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
+function DesireGame({me, partner, userKey, roomData, update, addN, back, isPremium, onUpgrade}) {
   const pk = userKey === "A" ? "B" : "A";
   const fk = "desire";
   const desire = roomData?.[fk];
@@ -4005,6 +4393,10 @@ function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
   }, [desire?.startedAt]);
 
   const generate = async () => {
+    if (!isPremium && (roomData?.desireRoundsUsed || 0) >= 3) {
+      onUpgrade();
+      return;
+    }
     setLoading(true);
     setLocalTeases([]);
     setResponse("");
@@ -4012,13 +4404,16 @@ function DesireGame({me, partner, userKey, roomData, update, addN, back}) {
       ? ["confess","dare","question","fantasy"][Math.floor(Math.random() * 4)]
       : category;
     const prompt = getDesirePromptV2(cat);
-    await update({[fk]: {
-      prompt, category: cat,
-      responses: {}, revealed: false,
-      teases: [],
-      roundCount: (desire?.roundCount || 0) + 1,
-      startedAt: Date.now(),
-    }});
+    await update({
+      [fk]: {
+        prompt, category: cat,
+        responses: {}, revealed: false,
+        teases: [],
+        roundCount: (desire?.roundCount || 0) + 1,
+        startedAt: Date.now(),
+      },
+      desireRoundsUsed: (roomData?.desireRoundsUsed || 0) + 1,
+    });
     setLoading(false);
   };
 
@@ -5197,6 +5592,7 @@ export default function App() {
   const [screen,   setScreen  ] = useState(null);
   const [showNotif,setShowNotif] = useState(false);
   const [showOnb,  setShowOnb ] = useState(false);
+  const [showUpgrade,setShowUpgrade] = useState(false);
   const [partnerUser,setPartnerUser] = useState(null);
 
   useEffect(()=>{
@@ -5272,7 +5668,9 @@ const addN=useCallback(async(type,message)=>{
 
   const signOut=async()=>{ await fbSignOut(auth); setRoomId(null); setUserKey(null); setRoomData(null); setMyUser(null); setScreen(null); setTab("home"); setAppState("login"); };
 
-  const shared={me,partner,myUser,partnerUser,userKey,roomData,update,addN};
+  const isPremium = roomData?.isPremium || myUser?.isPremium || false;
+  const onUpgrade = () => setShowUpgrade(true);
+  const shared={me,partner,myUser,partnerUser,userKey,roomData,update,addN,isPremium,onUpgrade};
   const go=s=>setScreen(s);
   const backHome=()=>setScreen(null);
 
@@ -5313,6 +5711,7 @@ const addN=useCallback(async(type,message)=>{
       </div>
 
       {showNotif&&<NotifPanel notifications={roomData?.notifications||[]} userKey={userKey} roomId={roomId} onClose={()=>setShowNotif(false)} onNavigate={handleNotifNav}/>}
+      {showUpgrade&&<UpgradeSheet onClose={()=>setShowUpgrade(false)} roomId={roomId}/>}
 
       <div style={{maxWidth:480,margin:"0 auto"}}>
         {screen==="qa"       &&<QAScreen      {...shared} back={backHome}/>}
