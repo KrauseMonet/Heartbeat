@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pricing — Heartbeat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Lato:wght@300;400;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: #FFF6F3;
+      font-family: 'Lato', system-ui, sans-serif;
+      color: #1A0A05;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.6;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* HEADER */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,246,243,0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(212,82,106,0.1);
+      padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 8px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-style: italic; font-size: 22px;
+      color: #D4526A; font-weight: 400;
+    }
+    .logo-heart { font-size: 18px; }
+    .header-cta {
+      background: linear-gradient(135deg, #F093A0, #D4526A);
+      color: #fff; border: none; border-radius: 14px;
+      padding: 9px 20px; font-family: 'Lato', sans-serif;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 4px 16px rgba(212,82,106,0.25);
+      text-decoration: none; display: inline-block;
+    }
+
+    /* LAYOUT */
+    .container { max-width: 720px; margin: 0 auto; padding: 0 24px; }
+
+    /* HERO */
+    .hero { text-align: center; padding: 64px 24px 48px; }
+    .hero h1 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(32px, 6vw, 48px);
+      font-style: italic; font-weight: 400;
+      color: #1A0A05; margin-bottom: 14px; line-height: 1.25;
+    }
+    .hero p { font-size: 17px; color: #9A7A68; max-width: 400px; margin: 0 auto; }
+
+    /* BILLING TOGGLE */
+    .toggle-wrap { display: flex; justify-content: center; margin-bottom: 40px; }
+    .toggle {
+      display: grid; grid-template-columns: 1fr 1fr;
+      background: rgba(212,82,106,0.06);
+      border-radius: 14px; padding: 4px; gap: 4px;
+      width: 260px;
+    }
+    .toggle-btn {
+      padding: 10px 0; border-radius: 11px; border: none;
+      cursor: pointer; font-family: 'Lato', sans-serif;
+      font-size: 13px; font-weight: 700;
+      background: transparent; color: #9A7A68;
+      transition: all 0.2s; position: relative;
+    }
+    .toggle-btn.active {
+      background: #fff; color: #D4526A;
+      box-shadow: 0 2px 8px rgba(212,82,106,0.1);
+    }
+    .save-badge {
+      position: absolute; top: -9px; right: 6px;
+      background: linear-gradient(135deg, #90C498, #6B8F71);
+      border-radius: 20px; padding: 2px 8px;
+      font-size: 9px; font-weight: 700; color: #fff;
+      white-space: nowrap;
+    }
+
+    /* CARDS */
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 64px;
+      align-items: start;
+    }
+    @media (max-width: 560px) {
+      .cards { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 24px;
+      padding: 28px 24px;
+      border: 1px solid rgba(212,82,106,0.1);
+      box-shadow: 0 8px 32px rgba(212,82,106,0.07);
+      position: relative;
+    }
+    .card.premium {
+      border: 2px solid rgba(212,82,106,0.35);
+      box-shadow: 0 20px 48px rgba(212,82,106,0.12);
+    }
+    .popular-badge {
+      position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(135deg, #F093A0, #D4526A);
+      color: #fff; border-radius: 20px;
+      padding: 4px 16px; font-size: 11px; font-weight: 700;
+      letter-spacing: 0.06em; white-space: nowrap;
+    }
+    .card-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.09em; color: #9A7A68; margin-bottom: 10px;
+    }
+    .card-label.premium-label { color: #D4526A; }
+    .card-price {
+      font-family: 'Playfair Display', serif;
+      font-size: 36px; font-weight: 700; color: #1A0A05;
+      line-height: 1; margin-bottom: 4px;
+    }
+    .card-price span { font-size: 14px; font-weight: 400; color: #9A7A68; font-family: 'Lato', sans-serif; }
+    .card-sub { font-size: 12px; color: #9A7A68; margin-bottom: 6px; min-height: 18px; }
+    .card-per-person {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #FDE8ED; border-radius: 20px;
+      padding: 4px 12px; margin-bottom: 20px;
+      border: 1px solid rgba(212,82,106,0.2);
+      font-size: 11px; font-weight: 700; color: #D4526A;
+    }
+    .feature-list { list-style: none; margin-bottom: 24px; }
+    .feature-list li {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: 13px; color: #1A0A05;
+      padding: 7px 0; border-bottom: 1px solid rgba(212,82,106,0.06);
+    }
+    .feature-list li:last-child { border-bottom: none; }
+    .feature-list .check { color: #6B8F71; font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+    .feature-list .section-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #9A7A68;
+      padding: 12px 0 4px; border-bottom: none;
+    }
+    .card-btn {
+      display: block; width: 100%; text-align: center;
+      border-radius: 16px; padding: 13px 24px;
+      font-family: 'Lato', sans-serif; font-size: 14px; font-weight: 700;
+      cursor: pointer; border: none; text-decoration: none;
+      transition: all 0.2s;
+    }
+    .card-btn.free-btn {
+      background: rgba(212,82,106,0.08);
+      color: #D4526A;
+      border: 1.5px solid rgba(212,82,106,0.25);
+    }
+    .card-btn.premium-btn {
+      background: linear-gradient(135deg, #F093A0, #D4526A);
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(212,82,106,0.28);
+    }
+    .card-btn.premium-btn:hover {
+      box-shadow: 0 12px 32px rgba(212,82,106,0.35);
+      transform: translateY(-1px);
+    }
+
+    /* FAQ */
+    .faq { padding-bottom: 64px; }
+    .faq h2 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 28px; font-style: italic; font-weight: 400;
+      color: #1A0A05; text-align: center; margin-bottom: 32px;
+    }
+    .faq-item {
+      background: #fff; border-radius: 18px;
+      padding: 20px 22px; margin-bottom: 12px;
+      border: 1px solid rgba(212,82,106,0.1);
+      box-shadow: 0 2px 10px rgba(212,82,106,0.05);
+    }
+    .faq-q { font-size: 15px; font-weight: 700; color: #1A0A05; margin-bottom: 8px; }
+    .faq-a { font-size: 14px; color: #9A7A68; line-height: 1.65; }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid rgba(212,82,106,0.1);
+      padding: 28px 24px;
+      text-align: center;
+      font-size: 13px; color: #9A7A68;
+    }
+    footer a { color: #9A7A68; margin: 0 10px; }
+    footer a:hover { color: #D4526A; }
+    .footer-inner { max-width: 720px; margin: 0 auto; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="/" class="logo">
+    <span class="logo-heart">♥</span> Heartbeat
+  </a>
+  <a href="/" class="header-cta">Get the app</a>
+</header>
+
+<div class="container">
+  <div class="hero">
+    <h1>Simple, honest pricing</h1>
+    <p>One subscription covers both of you ♥</p>
+  </div>
+
+  <div class="toggle-wrap">
+    <div class="toggle">
+      <button class="toggle-btn" id="btn-monthly" onclick="setCycle('monthly')">Monthly</button>
+      <button class="toggle-btn active" id="btn-yearly" onclick="setCycle('yearly')">
+        Yearly
+        <span class="save-badge" id="save-badge">Save ₹789</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="cards">
+    <!-- FREE -->
+    <div class="card">
+      <div class="card-label">Free</div>
+      <div class="card-price">₹0 <span>/ forever</span></div>
+      <div class="card-sub">&nbsp;</div>
+      <ul class="feature-list">
+        <li class="section-label">Everything you need to start</li>
+        <li><span class="check">✓</span> Heartbeat tap</li>
+        <li><span class="check">✓</span> Love notes</li>
+        <li><span class="check">✓</span> Daily Q&amp;A</li>
+        <li><span class="check">✓</span> Would You Rather</li>
+        <li><span class="check">✓</span> Never Have I Ever</li>
+        <li><span class="check">✓</span> Gratitude</li>
+        <li><span class="check">✓</span> Bucket list</li>
+        <li><span class="check">✓</span> Memory jar</li>
+        <li><span class="check">✓</span> Weekly check-in</li>
+        <li><span class="check">✓</span> Tic Tac Toe</li>
+        <li><span class="check">✓</span> Wordle Duel</li>
+        <li><span class="check">✓</span> Basic watch party</li>
+      </ul>
+      <a href="/" class="card-btn free-btn">Get started free</a>
+    </div>
+
+    <!-- PREMIUM -->
+    <div class="card premium">
+      <div class="popular-badge">Most popular</div>
+      <div class="card-label premium-label">Premium</div>
+      <div class="card-price" id="price-display">₹999 <span id="period-label">/ year</span></div>
+      <div class="card-sub" id="yearly-sub">₹83/month — billed once a year</div>
+      <div class="card-per-person">
+        <span>♥</span>
+        <span id="per-person-text">₹42 each per month</span>
+      </div>
+      <ul class="feature-list">
+        <li class="section-label">Everything in free, plus</li>
+        <li><span class="check" style="color:#D4526A">✦</span> Desire game — unlimited rounds</li>
+        <li><span class="check" style="color:#D4526A">✦</span> Truth or Dare spicy mode</li>
+        <li><span class="check" style="color:#D4526A">✦</span> AI-generated personalised questions</li>
+        <li><span class="check" style="color:#D4526A">✦</span> Pictionary</li>
+        <li><span class="check" style="color:#D4526A">✦</span> Full Q&amp;A and Desire history</li>
+        <li><span class="check" style="color:#D4526A">✦</span> Unlimited AI date &amp; outfit planning</li>
+      </ul>
+      <a href="/" class="card-btn premium-btn">Get Premium</a>
+    </div>
+  </div>
+
+  <!-- FAQ -->
+  <div class="faq">
+    <h2>Questions, answered</h2>
+    <div class="faq-item">
+      <div class="faq-q">Do both of us get premium?</div>
+      <div class="faq-a">Yes — one subscription covers both partners in your room. Pay once, and both of you unlock every premium feature.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Can I cancel anytime?</div>
+      <div class="faq-a">Yes, cancel anytime with no questions asked. Your access continues until the end of your current billing period, and you will not be charged again.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">What payment methods do you accept?</div>
+      <div class="faq-a">India: UPI, debit/credit cards, net banking, and wallets via Razorpay. International: card and PayPal via Paddle.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Is my data private?</div>
+      <div class="faq-a">Completely. Your room is private to you and your partner only. We never sell, share, or access your personal content.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Is there a free trial?</div>
+      <div class="faq-a">The free tier is yours forever with no time limit. Premium subscriptions also come with a 7-day money-back guarantee — no risk.</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <p>© 2026 Heartbeat &nbsp;·&nbsp; <a href="/privacy.html">Privacy</a> &nbsp;·&nbsp; <a href="/terms.html">Terms</a> &nbsp;·&nbsp; <a href="/refund.html">Refund Policy</a></p>
+  </div>
+</footer>
+
+<script>
+  // Timezone detection
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const isIndia = tz.includes('Calcutta') || tz.includes('Kolkata') || tz.includes('Asia/Colombo') || tz.includes('Asia/Dhaka');
+
+  const prices = {
+    monthly: isIndia ? '₹149' : '$3.99',
+    yearly:  isIndia ? '₹999' : '$29.99',
+  };
+  const yearlySub = isIndia ? '₹83/month — billed once a year' : '$2.50/month — billed once a year';
+  const saveBadge = isIndia ? 'Save ₹789' : 'Save $18';
+  const perPerson = {
+    monthly: isIndia ? '₹75 each per month' : '$2 each per month',
+    yearly:  isIndia ? '₹42 each per month' : '$1.25 each per month',
+  };
+  const freePrice = isIndia ? '₹0' : '$0';
+
+  document.querySelector('.card-price').innerHTML = freePrice + ' <span>/ forever</span>';
+  document.getElementById('save-badge').textContent = saveBadge;
+
+  let cycle = 'yearly';
+
+  function setCycle(c) {
+    cycle = c;
+    const priceEl  = document.getElementById('price-display');
+    const subEl    = document.getElementById('yearly-sub');
+    const periodEl = document.getElementById('period-label');
+    const ppEl     = document.getElementById('per-person-text');
+    const btnM     = document.getElementById('btn-monthly');
+    const btnY     = document.getElementById('btn-yearly');
+
+    if (c === 'yearly') {
+      priceEl.innerHTML = prices.yearly + ' <span id="period-label">/ year</span>';
+      subEl.textContent = yearlySub;
+      subEl.style.visibility = 'visible';
+      ppEl.textContent = perPerson.yearly;
+      btnM.classList.remove('active');
+      btnY.classList.add('active');
+    } else {
+      priceEl.innerHTML = prices.monthly + ' <span id="period-label">/ month</span>';
+      subEl.style.visibility = 'hidden';
+      ppEl.textContent = perPerson.monthly;
+      btnM.classList.add('active');
+      btnY.classList.remove('active');
+    }
+  }
+
+  // Init with yearly
+  setCycle('yearly');
+</script>
+</body>
+</html>
