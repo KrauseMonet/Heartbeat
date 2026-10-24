@@ -1037,6 +1037,41 @@ export function getDateTemplate(format, vibe) {
   return templates?.[vibe] || templates?.romantic;
 }
 
+// ── OUTFIT LOOKS ──────────────────────────────────────────────────
+export const OUTFIT_LOOKS = {
+  elegant: [
+    {title:"Evening in ivory",keyPieces:["Ivory silk shirt or kurta","Tailored dark trousers","Leather loafers or juttis"],colours:["Ivory","Charcoal"],styling:"Keep everything clean and pressed. One good watch or a pair of small earrings is all the jewellery you need.",avoid:"Loud prints. Let the fabric do the talking.",mood:"Graceful"},
+    {title:"Midnight classic",keyPieces:["Navy blazer or a structured kurta set","Crisp white base layer","Polished shoes"],colours:["Navy","White"],styling:"Navy and white never miss. Roll the sleeves once if the evening turns relaxed.",avoid:"Sneakers with this one.",mood:"Timeless"},
+  ],
+  casual: [
+    {title:"Sunday chai run",keyPieces:["Relaxed linen shirt","Straight-fit jeans","White sneakers"],colours:["Sage","Denim blue"],styling:"Untucked, sleeves pushed up. It should look like you didn't try, even if you did.",avoid:"Anything that needs ironing twice.",mood:"Easy"},
+    {title:"Café afternoon",keyPieces:["Soft cotton tee or short kurti","Chinos or wide-leg pants","Canvas tote"],colours:["Beige","Olive"],styling:"Neutrals with one texture you love. Add sunglasses and you're done.",avoid:"Head-to-toe black in the daytime.",mood:"Relaxed"},
+  ],
+  bold: [
+    {title:"Statement red",keyPieces:["One red hero piece","Black everything else","Chunky boots or block heels"],colours:["Red","Black"],styling:"Pick one piece that makes a statement and keep the rest quiet. Confidence is the accessory.",avoid:"Competing with a second bright colour.",mood:"Fearless"},
+    {title:"Print clash",keyPieces:["Printed co-ord set or shirt","Solid-colour layer","Gold accents"],colours:["Emerald","Gold"],styling:"Let the print lead and pull one colour from it for your shoes or bag.",avoid:"Mixing more than two prints.",mood:"Electric"},
+  ],
+  soft: [
+    {title:"Blush mornings",keyPieces:["Pastel knit or chikankari top","Cream trousers","Delicate jewellery"],colours:["Blush","Cream"],styling:"Soft fabrics, soft colours. Something that feels nice to hold hands in.",avoid:"Stiff, structured pieces.",mood:"Tender"},
+    {title:"Lavender haze",keyPieces:["Lavender shirt or dress","Light-wash denim","Simple sandals"],colours:["Lavender","White"],styling:"Keep the hair and accessories effortless so the colour carries the look.",avoid:"Dark heavy shoes.",mood:"Dreamy"},
+  ],
+  streetwear: [
+    {title:"City nights",keyPieces:["Oversized graphic tee","Cargo pants","Chunky sneakers"],colours:["Black","Olive"],styling:"Play with proportions: big on top, tapered at the ankle. A cap or crossbody bag finishes it.",avoid:"Everything oversized at once.",mood:"Cool"},
+    {title:"Monochrome drop",keyPieces:["Hoodie or overshirt","Matching joggers","Clean white sneakers"],colours:["Grey","White"],styling:"One colour, different textures. It looks expensive even when it isn't.",avoid:"Logos fighting for attention.",mood:"Laid-back"},
+  ],
+  vintage: [
+    {title:"Old Bombay",keyPieces:["High-waisted trousers","Tucked-in printed shirt","Round sunglasses"],colours:["Mustard","Brown"],styling:"Think 70s film stills. A belt and a slicked-back look tie it together.",avoid:"Modern athletic wear.",mood:"Nostalgic"},
+    {title:"Retro romance",keyPieces:["Polka dot or floral piece","Cardigan or knit vest","Mary Janes or loafers"],colours:["Maroon","Cream"],styling:"Pick one era and stay in it. A red lip or a neat moustache trim seals the deal.",avoid:"Fast-fashion shine.",mood:"Charming"},
+  ],
+};
+
+export function getOutfitLook(vibe, excludeTitle) {
+  const looks = OUTFIT_LOOKS[vibe] || OUTFIT_LOOKS.casual;
+  const options = looks.filter(l => l.title !== excludeTitle);
+  const pool = options.length ? options : looks;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 // ── RELATIONSHIP CHECK-IN ─────────────────────────────────────────
 export const CHECKIN_SETS = [
   {

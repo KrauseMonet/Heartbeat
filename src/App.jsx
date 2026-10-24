@@ -8,7 +8,7 @@ import {
   getDailyQuestion, getDailyWYR, getNHIESet,
   getTruthQuestion, getDare, getCompatSet,
   getDesirePrompt, getWatchSuggestions,
-  getDateTemplate, BUCKET_SUGGESTIONS,
+  getDateTemplate, getOutfitLook, BUCKET_SUGGESTIONS,
   getWeeklyCheckIn, getDailyWordle, getPictionaryWords,
 } from "./data/content.js";
 // ── FIREBASE ───────────────────────────────────────────────────────────────
@@ -48,83 +48,6 @@ async function sendPushToPartner(partnerUid, title, body) {
       body: JSON.stringify({ token, title, body }),
     });
   } catch(e) { console.error("Push failed:", e); }
-}
-
-// ── CLAUDE ─────────────────────────────────────────────────────────────────
-async function callClaude(system, msg) {
-  const r = await fetch("/api/claude", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, message: msg }),
-  });
-let d;
-
-try {
-  d = await r.json();
-} catch (e) {
-  console.error("Invalid JSON response from server");
-  throw new Error("Server error. Please try again.");
-}  if (!r.ok) throw new Error(d.error || "Claude API failed");
-  return d.text;
-}
-
-// ── COUPLE CONTEXT BUILDER ─────────────────────────────────────────────────
-function buildCoupleContext(me, partner, roomData, userKey) {
-  const pk = userKey === "A" ? "B" : "A";
-  const qaEntries = Object.entries(roomData || {})
-    .filter(([k]) => k.startsWith("qa_"))
-    .filter(([_, v]) => v?.answers?.[userKey] && v?.answers?.[pk])
-    .sort(([a], [b]) => b.localeCompare(a))
-    .slice(0, 8);
-
-  const qaHistory = qaEntries.map(([_, v]) =>
-    `Q: ${v.question}\n${me?.name}: ${v.answers[userKey]}\n${partner?.name}: ${v.answers[pk]}`
-  ).join("\n\n");
-
-  const recentCheckins = Object.entries(roomData || {})
-    .filter(([k]) => k.startsWith("checkin_"))
-    .sort(([a], [b]) => b.localeCompare(a))
-    .slice(0, 3)
-    .map(([_, v]) => {
-      const scores = v?.ratings || {};
-      return `Scores: ${JSON.stringify(scores)}. Reflection: ${v?.reflections?.[userKey] || "none"}`;
-    }).join("\n");
-
-  const wyrChoices = Object.entries(roomData || {})
-    .filter(([k]) => k.startsWith("wyr_"))
-    .filter(([_, v]) => v?.choices?.[userKey] && v?.choices?.[pk])
-    .slice(0, 5)
-    .map(([_, v]) => `${me?.name} chose "${v.choices[userKey]==="a"?v.a:v.b}", ${partner?.name} chose "${v.choices[pk]==="a"?v.a:v.b}"`)
-    .join("\n");
-
-  const desireHistory = (roomData?.desireHistory || []).slice(-5)
-    .map(d => `[${d.category}] ${d.prompt}`)
-    .join("\n");
-
-  const bucketDone = (roomData?.bucket || []).filter(i => i.done).map(i => i.text).join(", ");
-
-  return `
-COUPLE PROFILE:
-Names: ${me?.name} & ${partner?.name}
-Together: ${roomData?.anniversary ? Math.floor((Date.now() - new Date(roomData.anniversary)) / 86400000) + " days" : "unknown"}
-Distance: ${roomData?.distance || "unknown"}
-Couple name: ${roomData?.coupleName || "not set"}
-
-RECENT Q&A ANSWERS (last 8):
-${qaHistory || "none yet"}
-
-RECENT CHECK-IN SCORES:
-${recentCheckins || "none yet"}
-
-WOULD YOU RATHER CHOICES:
-${wyrChoices || "none yet"}
-
-DESIRE PROMPTS EXPLORED:
-${desireHistory || "none yet"}
-
-BUCKET LIST COMPLETED:
-${bucketDone || "none yet"}
-`.trim();
 }
 
 // ── CLOUDINARY ─────────────────────────────────────────────────────────────
@@ -501,10 +424,9 @@ function UpgradeSheet({onClose, roomId}) {
   const FEATURES = [
     {emoji:"🔥", text:"Desire game — unlimited rounds"},
     {emoji:"🎭", text:"Truth or Dare spicy mode"},
-    {emoji:"✨", text:"AI-generated questions that learn from you"},
     {emoji:"🎨", text:"Pictionary — real-time drawing game"},
     {emoji:"📖", text:"Full Q&A & Desire history"},
-    {emoji:"🗓️", text:"Unlimited AI date & outfit planning"},
+    {emoji:"🗓️", text:"Unlimited date & outfit planning"},
   ];
 
   return (
@@ -1857,75 +1779,21 @@ const PLATFORMS = [
 // ── DATE PLANNER SCREEN ────────────────────────────────────────────
 function DatePlannerScreen({me,partner,userKey,roomData,update,addN,back}){
   const pk=userKey==="A"?"B":"A";
-  const [step,setStep]=useState("format"); // format|vibe|city|generating|result|history
+  const [step,setStep]=useState("format"); // format|vibe|city|result|history
   const [format,setFormat]=useState(""); // inperson|virtual
   const [vibe,setVibe]=useState("");
   const [city,setCity]=useState(roomData?.distance?.split("↔")?.[0]?.trim()||"");
   const [plan,setPlan]=useState(null);
-  const [loading,setLoading]=useState(false);
   const [savedPlans,setSavedPlans]=useState(roomData?.datePlans||[]);
   const [scheduledDate,setScheduledDate]=useState("");
   const [saving,setSaving]=useState(false);
 
   useEffect(()=>{setSavedPlans(roomData?.datePlans||[]);},[roomData?.datePlans]);
 
-  const generate=async()=>{
-    setStep("generating"); setLoading(true);
-    try{
-      const system=`You are a romantic date planner for couples. Generate creative, specific, and thoughtful date plans. For in-person dates, suggest real types of venues with specific neighbourhood areas and timing. For virtual dates, create a structured evening with specific activities. Always format your response as valid JSON only with no markdown backticks.`;
-
-      const pastPlans=savedPlans.slice(0,5).map(p=>p.title).join(", ");
-      const avoidStr=pastPlans?`Avoid repeating these past date ideas: ${pastPlans}.`:"";
-
-      const prompt=format==="inperson"
-        ?`Create a ${vibe} in-person date plan for a couple in ${city||"their city"}. ${avoidStr}
-Return ONLY this JSON structure:
-{
-  "title": "short romantic title",
-  "format": "inperson",
-  "vibe": "${vibe}",
-  "city": "${city}",
-  "description": "one warm sentence about this date",
-  "stops": [
-    {
-      "time": "7:00 PM",
-      "place": "specific place name or type",
-      "area": "neighbourhood or area of city",
-      "description": "one line about this stop",
-      "mapsQuery": "search term for google maps"
-    }
-  ],
-  "tips": "one practical tip for this date"
-}`
-        :`Create a ${vibe} virtual date plan for a long-distance couple. ${avoidStr}
-Return ONLY this JSON structure:
-{
-  "title": "short romantic title",
-  "format": "virtual",
-  "vibe": "${vibe}",
-  "description": "one warm sentence about this date",
-  "stops": [
-    {
-      "time": "8:00 PM",
-      "activity": "specific activity name",
-      "platform": "tool or platform to use",
-      "description": "one line about this activity",
-      "link": "https://relevant-platform-url.com"
-    }
-  ],
-  "tips": "one practical tip for this virtual date"
-}`;
-
-      const raw=await callClaude(system,prompt);
-      const m=raw.match(/\{[\s\S]*\}/);
-      const parsed=JSON.parse(m?m[0]:raw);
-      setPlan(parsed);
-      setStep("result");
-    }catch(e){
-      console.error(e);
-      setStep("vibe");
-    }
-    setLoading(false);
+  const generate=()=>{
+    const tpl=getDateTemplate(format,vibe);
+    setPlan({...tpl,format,vibe,city:format==="inperson"?city.trim():""});
+    setStep("result");
   };
 
   const savePlan=async()=>{
@@ -2035,7 +1903,7 @@ Return ONLY this JSON structure:
             <div className="fade-rise">
               <div style={{marginBottom:24}}>
                 <h3 style={{fontFamily:PF,fontSize:24,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:8}}>What's the vibe?</h3>
-                <p style={{fontSize:14,color:C.muted,fontFamily:LT}}>Pick one — Claude will shape the whole plan around it.</p>
+                <p style={{fontSize:14,color:C.muted,fontFamily:LT}}>Pick one and we'll shape the whole plan around it.</p>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:24}}>
                 {DATE_VIBES.map(v=>(
@@ -2054,20 +1922,6 @@ Return ONLY this JSON structure:
                 <Btn variant="ghost" onClick={()=>setStep("format")}>← Back</Btn>
                 <Btn disabled={!vibe||(format==="inperson"&&!city.trim())} onClick={generate} style={{background:gradCard,border:"none",color:"#fff",boxShadow:SHADOWS.lg}}>Plan this date →</Btn>
               </div>
-            </div>
-          )}
-
-          {/* STEP — GENERATING */}
-          {step==="generating"&&(
-            <div className="fade-rise" style={{textAlign:"center",padding:"48px 0"}}>
-              <div style={{position:"relative",display:"inline-block",marginBottom:28}}>
-                <div style={{position:"absolute",inset:-20,borderRadius:"50%",border:`2px solid rgba(232,93,38,0.25)`,animation:"hbRing1 2.5s ease-out infinite"}}/>
-                <div style={{width:90,height:90,borderRadius:"50%",background:gradCard,display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.xl}}>
-                  <CalendarHeart size={44} color="#fff" weight="fill" className="hb-spin"/>
-                </div>
-              </div>
-              <h3 style={{fontFamily:PF,fontSize:24,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:10}}>Planning your date...</h3>
-              <p style={{fontSize:14,color:C.muted,fontFamily:LT,lineHeight:1.7}}>Finding the perfect places<br/>and crafting your evening.</p>
             </div>
           )}
 
@@ -2272,7 +2126,6 @@ function OutfitPlannerScreen({me,partner,userKey,roomData,update,addN,back}){
   const [occasion,setOccasion]=useState("");
   const [vibe,setVibe]=useState("");
   const [note,setNote]=useState("");
-  const [loading,setLoading]=useState(false);
   const [result,setResult]=useState(null);
   const [partnerNote,setPartnerNote]=useState("");
 
@@ -2280,26 +2133,8 @@ function OutfitPlannerScreen({me,partner,userKey,roomData,update,addN,back}){
   const pendingForMe=outfitCards.filter(c=>c.for===userKey&&!c.seen);
   const myCards=outfitCards.filter(c=>c.by===userKey);
 
-  const generate=async()=>{
-    setLoading(true);
-    try{
-      const target=mode==="forme"?me?.name:partner?.name;
-      const system="You are a thoughtful personal stylist. Generate specific, wearable outfit suggestions with colour palettes, key pieces, and styling notes. Be warm and personal. Return only JSON.";
-      const prompt=`Generate a ${vibe} outfit suggestion for ${target} for a ${occasion} occasion.${note?` Special note: ${note}`:""}
-Return ONLY this JSON:
-{
-  "title": "outfit name",
-  "keyPieces": ["piece 1", "piece 2", "piece 3"],
-  "colours": ["colour 1", "colour 2"],
-  "styling": "2-3 sentences of styling advice",
-  "avoid": "one thing to avoid",
-  "mood": "one word mood of this outfit"
-}`;
-      const raw=await callClaude(system,prompt);
-      const m=raw.match(/\{[\s\S]*\}/);
-      setResult(JSON.parse(m?m[0]:raw));
-    }catch(e){console.error(e);}
-    setLoading(false);
+  const generate=()=>{
+    setResult(getOutfitLook(vibe,result?.title));
   };
 
   const sendToPartner=async()=>{
@@ -2311,27 +2146,9 @@ Return ONLY this JSON:
   };
 
   const requestChange=async(cardId,changeNote)=>{
-    setLoading(true);
-    try{
-      const card=outfitCards.find(c=>c.id===cardId);
-      const system="You are a personal stylist. Revise an outfit suggestion based on feedback. Return only JSON.";
-      const prompt=`Original outfit: ${JSON.stringify(card.result)}. Requested change: "${changeNote}". Generate a revised outfit keeping the original spirit but incorporating the change.
-Return ONLY this JSON:
-{
-  "title": "revised outfit name",
-  "keyPieces": ["piece 1", "piece 2", "piece 3"],
-  "colours": ["colour 1", "colour 2"],
-  "styling": "2-3 sentences of styling advice",
-  "avoid": "one thing to avoid",
-  "mood": "one word mood"
-}`;
-      const raw=await callClaude(system,prompt);
-      const m=raw.match(/\{[\s\S]*\}/);
-      const revised=JSON.parse(m?m[0]:raw);
-      const updated=outfitCards.map(c=>c.id===cardId?{...c,result:revised,revisions:[...c.revisions,{note:changeNote,ts:Date.now()}],seen:true}:c);
-      await update({outfitCards:updated});
-    }catch(e){console.error(e);}
-    setLoading(false);
+    const updated=outfitCards.map(c=>c.id===cardId?{...c,revisions:[...c.revisions,{note:changeNote,ts:Date.now()}],seen:true}:c);
+    await update({outfitCards:updated});
+    await addN("outfit",`${me?.name} asked for a change: "${changeNote}"`);
   };
 
   const gradOutfit="linear-gradient(135deg,#C084FC,#8B6BAD)";
@@ -2358,13 +2175,13 @@ Return ONLY this JSON:
                 <div style={{marginBottom:24}}>
                   <div style={{fontSize:11,fontWeight:700,color:outfitColor,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>From {partner?.name} ✨</div>
                   {pendingForMe.map(card=>(
-                    <OutfitCard key={card.id} card={card} me={me} partner={partner} userKey={userKey} outfitColor={outfitColor} outfitBd={outfitBd} gradOutfit={gradOutfit} onRequestChange={requestChange} loading={loading}/>
+                    <OutfitCard key={card.id} card={card} me={me} partner={partner} userKey={userKey} outfitColor={outfitColor} outfitBd={outfitBd} gradOutfit={gradOutfit} onRequestChange={requestChange}/>
                   ))}
                 </div>
               )}
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
                 {[
-                  {key:"forme",icon:"✨",title:"Get outfit ideas",desc:"AI suggests an outfit for you"},
+                  {key:"forme",icon:"✨",title:"Get outfit ideas",desc:"Get a look for any occasion"},
                   {key:"forpartner",icon:"💌",title:`Suggest for ${partner?.name}`,desc:"Send your partner an outfit idea"},
                 ].map(m=>(
                   <button key={m.key} onClick={()=>setMode(m.key)} className="card-hover" style={{background:"rgba(255,255,255,0.95)",border:`1.5px solid ${outfitBd}`,borderRadius:20,padding:"20px 18px",cursor:"pointer",fontFamily:LT,textAlign:"left",boxShadow:SHADOWS.md,display:"flex",alignItems:"center",gap:16}}>
@@ -2377,7 +2194,7 @@ Return ONLY this JSON:
             </div>
           )}
 
-          {mode&&!result&&!loading&&(
+          {mode&&!result&&(
             <div className="fade-rise">
               <h3 style={{fontFamily:PF,fontSize:22,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:20}}>{mode==="forme"?"What are you dressing for?":`What should ${partner?.name} wear?`}</h3>
               <div style={{marginBottom:18}}>
@@ -2400,9 +2217,7 @@ Return ONLY this JSON:
             </div>
           )}
 
-          {loading&&<Spinner text="Styling your look..."/>}
-
-          {result&&!loading&&(
+          {result&&(
             <div className="fade-rise">
               <div style={{background:gradOutfit,borderRadius:24,padding:"24px 22px",marginBottom:20,boxShadow:SHADOWS.xl}}>
                 <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.7)",textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8,fontFamily:LT}}>{vibe} · {occasion}</div>
@@ -2431,7 +2246,7 @@ Return ONLY this JSON:
                 {result.avoid&&<div style={{fontSize:12,color:C.muted,fontFamily:LT,marginTop:10,fontStyle:"italic"}}>Avoid: {result.avoid}</div>}
               </Card>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <Btn variant="ghost" onClick={()=>setResult(null)}>Try again →</Btn>
+                <Btn variant="ghost" onClick={generate}>Another look →</Btn>
                 {mode==="forpartner"?<Btn onClick={sendToPartner} style={{background:gradOutfit,border:"none",color:"#fff"}}>Send to {partner?.name} →</Btn>:<Btn variant="ghost" onClick={()=>{setResult(null);setMode("");}}>Done</Btn>}
               </div>
             </div>
@@ -2443,7 +2258,7 @@ Return ONLY this JSON:
 }
 
 // ── OUTFIT CARD ────────────────────────────────────────────────────
-function OutfitCard({card,me,partner,userKey,outfitColor,outfitBd,gradOutfit,onRequestChange,loading}){
+function OutfitCard({card,me,partner,userKey,outfitColor,outfitBd,gradOutfit,onRequestChange}){
   const [expanded,setExpanded]=useState(true);
   const [changeNote,setChangeNote]=useState("");
   const [requesting,setRequesting]=useState(false);
@@ -2468,10 +2283,10 @@ function OutfitCard({card,me,partner,userKey,outfitColor,outfitBd,gradOutfit,onR
 ))}
         <div style={{fontSize:13,color:C.muted,fontFamily:LT,lineHeight:1.6,marginTop:10}}>{card.result.styling}</div>
         {card.note&&<div style={{fontSize:12,color:outfitColor,fontFamily:PF,fontStyle:"italic",marginTop:10}}>"{card.note}"</div>}
-        {card.revisions?.length>0&&<div style={{fontSize:11,color:C.muted,fontFamily:LT,marginTop:8}}>Revised {card.revisions.length} time{card.revisions.length>1?"s":""}</div>}
+        {card.revisions?.length>0&&<div style={{fontSize:11,color:C.muted,fontFamily:LT,marginTop:8}}>Change requested {card.revisions.length} time{card.revisions.length>1?"s":""}</div>}
         <div style={{marginTop:14}}>
           <Field placeholder="Request a change... e.g. try a warmer colour" value={changeNote} onChange={e=>setChangeNote(e.target.value)}/>
-          <Btn disabled={!changeNote.trim()||requesting||loading} onClick={handleChange} style={{background:gradOutfit,border:"none",color:"#fff",fontSize:13}}>{requesting?"Revising...":"Request this change →"}</Btn>
+          <Btn disabled={!changeNote.trim()||requesting} onClick={handleChange} style={{background:gradOutfit,border:"none",color:"#fff",fontSize:13}}>{requesting?"Sending...":"Request this change →"}</Btn>
         </div>
       </div>
     </div>
@@ -3162,14 +2977,13 @@ function QAHistory({me, partner, userKey, roomData, back}) {
     </ScreenWrap>
   );
 }
-function QAScreen({me, partner, userKey, roomData, update, addN, back, isPremium, onUpgrade}) {
+function QAScreen({me, partner, userKey, roomData, update, addN, back}) {
   const pk = userKey === "A" ? "B" : "A";
   const fk = `qa_${todayKey()}`;
   const qa = roomData?.[fk];
   const [ans, setAns] = useState(qa?.answers?.[userKey] || "");
   const [guess, setGuess] = useState(qa?.guesses?.[userKey] || "");
   const [showHistory, setShowHistory] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
 
   const phase = !qa?.question ? "gen"
     : !qa?.answers?.[userKey] ? "answer"
@@ -3234,21 +3048,6 @@ function QAScreen({me, partner, userKey, roomData, update, addN, back, isPremium
               <h3 style={{fontFamily: PF, fontSize: 24, fontStyle: "italic", fontWeight: 400, marginBottom: 10, color: C.text}}>Today's question awaits</h3>
               <p style={{color: C.muted, fontSize: 15, lineHeight: 1.75, marginBottom: 36, fontFamily: LT}}>A fresh question, just for you two.</p>
               <Btn onClick={generate}>Get today's question</Btn>
-              {isPremium && (
-                <button onClick={async () => {
-                  setAiLoading(true);
-                  try {
-                    const context = buildCoupleContext(me, partner, roomData, userKey);
-                    const system = `You are a thoughtful relationship question generator for couples. Generate one single intimate, specific question that will spark a meaningful conversation. The question should feel personal to THIS couple based on their history. Return only the question, no preamble, no quotes.`;
-                    const msg = `Generate a fresh daily question for this couple. Make it feel personal to them, referencing their situation where natural.\n\n${context}`;
-                    const q = await callClaude(system, msg);
-                    await update({[fk]: {question: q, answers: {}, guesses: {}, date: todayStr(), aiGenerated: true}});
-                  } catch(e) { console.error(e); }
-                  setAiLoading(false);
-                }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",borderRadius:18,padding:"13px 24px",fontFamily:LT,fontSize:14,fontWeight:700,background:"rgba(212,82,106,0.08)",border:`1px solid ${C.roseBd}`,cursor:"pointer",color:C.rose,marginTop:10}}>
-                  {aiLoading ? <><div className="hb-spin"><Sparkle size={16} color={C.rose}/></div> Generating...</> : <><Sparkle size={16} color={C.rose} weight="fill"/> Generate personalised question ✨</>}
-                </button>
-              )}
             </div>
           )}
 
@@ -3342,12 +3141,11 @@ function QAScreen({me, partner, userKey, roomData, update, addN, back, isPremium
   );
 }
 
-function WYRScreen({me,partner,userKey,roomData,update,addN,back,isPremium,onUpgrade}){
+function WYRScreen({me,partner,userKey,roomData,update,addN,back}){
   const pk=userKey==="A"?"B":"A";
   const fk=`wyr_${todayKey()}`;
   const wyr=roomData?.[fk];
 
-  const [wyrAiLoading, setWyrAiLoading] = useState(false);
 
   const generate=async()=>{
     const pair=getDailyWYR();
@@ -3374,22 +3172,6 @@ function WYRScreen({me,partner,userKey,roomData,update,addN,back,isPremium,onUpg
         </div>
         <p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>No obvious right answer — just interesting choices.</p>
         <Btn variant="gold" onClick={generate}>Get today's dilemma</Btn>
-        {isPremium && (
-          <button onClick={async () => {
-            setWyrAiLoading(true);
-            try {
-              const context = buildCoupleContext(me, partner, roomData, userKey);
-              const system = `Generate one Would You Rather pair for this couple. Return JSON only: {"a": "option a", "b": "option b"}. Make it personal and interesting based on their history.`;
-              const msg = `Generate a personalised Would You Rather for this couple.\n\n${context}`;
-              const raw = await callClaude(system, msg);
-              const pair = JSON.parse(raw.match(/\{[\s\S]*\}/)[0]);
-              await update({[fk]:{a:pair.a,b:pair.b,choices:{}}});
-            } catch(e) { console.error(e); }
-            setWyrAiLoading(false);
-          }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",borderRadius:18,padding:"13px 24px",fontFamily:LT,fontSize:14,fontWeight:700,background:"rgba(212,146,42,0.08)",border:`1px solid ${C.goldBd}`,cursor:"pointer",color:C.gold,marginTop:10}}>
-            {wyrAiLoading ? <><div className="hb-spin"><Sparkle size={16} color={C.gold}/></div> Generating...</> : <><Sparkle size={16} color={C.gold} weight="fill"/> Generate personalised dilemma ✨</>}
-          </button>
-        )}
       </div>):(<div className="fade-rise">
         <p style={{fontFamily:PF,fontSize:20,fontStyle:"italic",color:C.muted,textAlign:"center",marginBottom:24}}>Would you rather...</p>
         {opts.map(opt=>{ const chosen=mine===opt.key,pp=theirs===opt.key; return <button key={opt.key} onClick={()=>!mine&&choose(opt.key)} className="card-hover" style={{display:"block",width:"100%",background:chosen?opt.soft:"rgba(255,255,255,0.93)",border:`2px solid ${chosen?opt.color:"rgba(255,255,255,0.92)"}`,borderRadius:22,padding:22,textAlign:"left",cursor:mine?"default":"pointer",fontFamily:LT,marginBottom:14,boxShadow:chosen?SHADOWS.lg:SHADOWS.md}}><div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}><div style={{width:32,height:32,borderRadius:10,background:opt.grad,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:SHADOWS.sm,fontSize:10,fontWeight:700,color:"#fff",fontFamily:LT}}>{opt.label.split(" ")[1]}</div><div style={{fontSize:11,fontWeight:700,color:opt.color,textTransform:"uppercase",letterSpacing:"0.09em"}}>{opt.label}</div></div><div style={{fontFamily:PF,fontSize:19,fontStyle:"italic",color:C.text,lineHeight:1.55}}>{opt.text}</div>{both&&<div style={{marginTop:12,display:"flex",gap:8,flexWrap:"wrap"}}>{chosen&&<span style={{fontSize:11,fontWeight:700,color:opt.color,background:opt.soft,padding:"4px 10px",borderRadius:20,border:`1px solid ${opt.bd}`,fontFamily:LT}}>✓ {me?.name}</span>}{pp&&<span style={{fontSize:11,fontWeight:700,color:opt.color,background:opt.soft,padding:"4px 10px",borderRadius:20,border:`1px solid ${opt.bd}`,fontFamily:LT}}>✓ {partner?.name}</span>}</div>}</button>; })}
@@ -3401,12 +3183,11 @@ function WYRScreen({me,partner,userKey,roomData,update,addN,back,isPremium,onUpg
   );
 }
 
-function NHIE({me,partner,userKey,roomData,update,addN,back,isPremium,onUpgrade}){
+function NHIE({me,partner,userKey,roomData,update,addN,back}){
   const pk=userKey==="A"?"B":"A";
   const fk=`ninh_${todayKey()}`;
   const ninh=roomData?.[fk];
 
-  const [nhieAiLoading, setNhieAiLoading] = useState(false);
 
   const generate=async()=>{
     const statements=getNHIESet(false).map(t=>({text:t,A:null,B:null}));
@@ -3429,22 +3210,6 @@ function NHIE({me,partner,userKey,roomData,update,addN,back,isPremium,onUpgrade}
         <div style={{marginBottom:24,display:"inline-flex",alignItems:"center",justifyContent:"center",width:100,height:100,borderRadius:"50%",background:C.gradSage,boxShadow:SHADOWS.xl}}><HandPointing size={48} color="#fff" weight="fill"/></div>
         <p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>5 statements. Have or never?</p>
         <Btn variant="sage" onClick={generate}>Get statements</Btn>
-        {isPremium && (
-          <button onClick={async () => {
-            setNhieAiLoading(true);
-            try {
-              const context = buildCoupleContext(me, partner, roomData, userKey);
-              const system = `Generate 5 Never Have I Ever statements for this couple. Return a JSON array of strings only. Make them personal and interesting based on their history.`;
-              const msg = `Generate personalised Never Have I Ever statements for this couple.\n\n${context}`;
-              const raw = await callClaude(system, msg);
-              const stmts = JSON.parse(raw.match(/\[[\s\S]*\]/)[0]);
-              await update({[fk]:{statements: stmts.slice(0,5).map(t=>({text:t,A:null,B:null}))}});
-            } catch(e) { console.error(e); }
-            setNhieAiLoading(false);
-          }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",borderRadius:18,padding:"13px 24px",fontFamily:LT,fontSize:14,fontWeight:700,background:"rgba(107,143,113,0.08)",border:`1px solid ${C.sageBd}`,cursor:"pointer",color:C.sage,marginTop:10}}>
-            {nhieAiLoading ? <><div className="hb-spin"><Sparkle size={16} color={C.sage}/></div> Generating...</> : <><Sparkle size={16} color={C.sage} weight="fill"/> Generate personalised statements ✨</>}
-          </button>
-        )}
       </div>):(
       <div className="fade-rise">
         {ninh.statements.map((s,i)=><Card key={i} elevated style={{marginBottom:12}} className={`s${Math.min(i+1,6)}`}><div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:8,fontFamily:LT,display:"flex",alignItems:"center",gap:5}}><Star size={12} color={C.muted} weight="fill"/>Statement {i+1}</div><p style={{fontSize:14,color:C.text,marginBottom:14,lineHeight:1.55,fontFamily:LT}}>{s.text}</p>{!s[userKey]?(<div style={{display:"flex",gap:10}}><button onClick={()=>vote(i,"have")} className="card-hover" style={{flex:1,padding:"11px",borderRadius:14,border:"none",background:"linear-gradient(135deg,rgba(107,143,113,0.15),rgba(144,196,152,0.10))",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:C.sage,boxShadow:SHADOWS.sm}}>I have</button><button onClick={()=>vote(i,"never")} className="card-hover" style={{flex:1,padding:"11px",borderRadius:14,border:"none",background:"rgba(212,82,106,0.08)",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:C.rose,boxShadow:SHADOWS.sm}}>Never</button></div>):(<div style={{display:"flex",flexWrap:"wrap",gap:8}}>{[[userKey,me?.name],[pk,partner?.name]].map(([key,name])=>s[key]?<span key={key} style={{fontSize:11,fontWeight:700,padding:"5px 12px",borderRadius:20,background:s[key]==="have"?C.sageSoft:C.roseSoft,color:s[key]==="have"?C.sage:C.rose,border:`1px solid ${s[key]==="have"?C.sageBd:C.roseBd}`,fontFamily:LT}}>{name}: {s[key]==="have"?"Have":"Never"}</span>:<span key={key} style={{fontSize:11,color:C.muted,fontStyle:"italic",fontFamily:LT}}>⏳ {name}...</span>)}</div>)}</Card>)}
@@ -3557,10 +3322,9 @@ function TeasePanelToD({userKey, partner, tordTeases, tordSpicy, update}) {
     </div>
   );
 }
-function TruthOrDare({me, partner, userKey, roomData, update, addN, back, isPremium, onUpgrade}) {
+function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
   const tord = roomData?.tord;
   const [spicy, setSpicy] = useState(false);
-  const [todAiLoading, setTodAiLoading] = useState(false);
 
   const pick = async type => {
     const content = type === "truth" ? getTruthQuestion(spicy) : getDare(spicy);
@@ -3610,23 +3374,6 @@ function TruthOrDare({me, partner, userKey, roomData, update, addN, back, isPrem
                   <div style={{fontSize: 17, fontWeight: 700, color: spicy ? "#E8C0A0" : C.gold, fontFamily: PF, fontStyle: "italic"}}>Dare</div>
                 </button>
               </div>
-              {isPremium && (
-                <button onClick={async () => {
-                  setTodAiLoading(true);
-                  try {
-                    const context = buildCoupleContext(me, partner, roomData, userKey);
-                    const type = spicy ? "spicy truth" : "truth";
-                    const system = `Generate one ${type} question for this couple. Return only the question/dare, no preamble.`;
-                    const msg = `Generate a personalised truth question for this couple based on their history.\n\n${context}`;
-                    const content = await callClaude(system, msg);
-                    await update({tord: {type:"truth", content, done:false, spicy, teases:[], startedAt:Date.now(), aiGenerated:true}});
-                    await addN("tord", `${me?.name} got an AI truth ✨`);
-                  } catch(e) { console.error(e); }
-                  setTodAiLoading(false);
-                }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",borderRadius:18,padding:"13px 24px",fontFamily:LT,fontSize:14,fontWeight:700,background:spicy?"rgba(255,255,255,0.06)":"rgba(212,82,106,0.08)",border:`1px solid ${spicy?"rgba(255,255,255,0.12)":C.roseBd}`,cursor:"pointer",color:spicy?"#E8C0A0":C.rose,marginTop:14}}>
-                  {todAiLoading ? <><div className="hb-spin"><Sparkle size={16} color={spicy?"#E8C0A0":C.rose}/></div> Generating...</> : <><Sparkle size={16} color={spicy?"#E8C0A0":C.rose} weight="fill"/> AI personalised truth ✨</>}
-                </button>
-              )}
             </div>
           )}
 
