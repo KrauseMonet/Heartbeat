@@ -2,15 +2,18 @@
 // INVESTOR DEMO — "Play to Match" dating flow (open with /?demo)
 // Runs entirely in the browser with sample profiles. Nothing is saved.
 // ══════════════════════════════════════════════════════════════════
-import { useState, useEffect, useRef } from "react";
-import { Heart, Lightning, X, SealCheck, MapPin, Info, ChatCircleDots, CalendarHeart, PaperPlaneRight, Sparkle, Scales, ChatTeardrop, ChartBar, ArrowRight, GameController, Users, Lock } from "@phosphor-icons/react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Heart, Lightning, X, SealCheck, MapPin, Info, ChatCircleDots, CalendarHeart, PaperPlaneRight, Sparkle, Scales, ChatTeardrop, ChartBar, ArrowRight, GameController, Users, Lock, PlayCircle, Crown, TShirt } from "@phosphor-icons/react";
 import { PF, LT, C, SHADOWS, STYLES } from "../ui/theme.js";
 import { Btn, Card, BackBtn, GradOrb, ScreenWrap } from "../ui/primitives.jsx";
-import { getDateTemplate } from "../data/content.js";
+import { getDateTemplate, getOutfitLook } from "../data/content.js";
+import { ShoppingRow } from "../ui/ShoppingRow.jsx";
 import { profilesFor } from "./profiles.js";
 import { buildRound, simulateOpponent, syncScore, opponentDecision, resolve } from "./sim.js";
 
 const SPARK = "linear-gradient(135deg,#FF7A70 0%,#D4526A 100%)";
+const FREE_SPARKS = 3; // the real free tier is 10 a day; the demo starts low so the limit shows up quickly
+const DATE_TO_OUTFIT = { cozy: "soft", foodie: "casual", silly: "casual", cultural: "vintage", adventurous: "streetwear", romantic: "elegant" };
 // index.css still has Vite template rules (centred #root, light headings in dark mode); keep the demo independent of them
 const DEMO_CSS = `.hb-demo{text-align:left;color:${C.text}}.hb-demo h1,.hb-demo h2,.hb-demo h3{color:${C.text};letter-spacing:normal;margin-top:0}`;
 const GAME_LABELS = [{ Icon: Scales, label: "Would You Rather" }, { Icon: ChatTeardrop, label: "Guess Me" }, { Icon: ChartBar, label: "Compatibility" }];
@@ -35,12 +38,13 @@ function Photo({ src, name, size, radius = "50%", style: s }) {
   return <img src={src} alt={name} onError={() => setFailed(true)} style={{ ...base, background: "#FFE8E0" }} />;
 }
 
-function TopBar({ notes, setNotes, onRestart }) {
+function TopBar({ notes, setNotes, onRestart, plus }) {
   return (
     <div style={{ background: "rgba(255,246,243,0.82)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderBottom: "1px solid rgba(255,255,255,0.72)", padding: "12px 18px", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 20 }}>
       <div onClick={onRestart} style={{ cursor: "pointer", fontFamily: PF, fontStyle: "italic", color: C.rose, fontSize: 21, display: "flex", alignItems: "center", gap: 7, flex: 1 }}>
         <Heart size={17} color={C.rose} weight="fill" />Heartbeat
         <span style={{ ...pill(C.goldSoft, C.gold, C.goldBd), fontStyle: "normal", fontSize: 10, padding: "3px 8px" }}>DEMO</span>
+        {plus && <span style={{ ...pill(C.purpleSoft, C.purple, C.purpleBd), fontStyle: "normal", fontSize: 10, padding: "3px 8px" }}><Crown size={11} weight="fill" />PLUS</span>}
       </div>
       <button onClick={() => setNotes(!notes)} style={{ ...pill(notes ? C.purpleSoft : "rgba(255,255,255,0.8)", notes ? C.purple : C.muted, notes ? C.purpleBd : C.border), cursor: "pointer" }}>
         <Info size={13} weight={notes ? "fill" : "regular"} /> Notes {notes ? "on" : "off"}
@@ -129,7 +133,7 @@ function PhotoCarousel({ profile }) {
   );
 }
 
-function Discover({ profile, remaining, notes, onSkip, onSpark, onRestart }) {
+function Discover({ profile, remaining, notes, sparksLeft, plus, showAd, onSkip, onSpark, onRestart }) {
   if (!profile) return (
     <div className="fade-rise" style={{ textAlign: "center", padding: "70px 28px" }}>
       <div style={{ fontSize: 44, marginBottom: 12 }}>✨</div>
@@ -141,6 +145,10 @@ function Discover({ profile, remaining, notes, onSkip, onSpark, onRestart }) {
   return (<>
     <div key={profile.id} className="fade-rise" style={{ padding: "16px 16px 130px" }}>
       <Note on={notes}>Photos and prompts are shown up front, like any dating app. The difference is the button below: instead of a like, you send a <b>Spark</b>, an invite to play.</Note>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+        {plus ? <span style={pill(C.purpleSoft, C.purple, C.purpleBd)}><Crown size={12} weight="fill" />Heartbeat+ · 30 Sparks a day</span>
+          : <span style={pill(sparksLeft > 0 ? C.roseSoft : "rgba(255,255,255,0.85)", sparksLeft > 0 ? C.rose : C.muted, sparksLeft > 0 ? C.roseBd : C.border)}><Lightning size={12} weight="fill" />{sparksLeft} free Spark{sparksLeft === 1 ? "" : "s"} left today</span>}
+      </div>
       <PhotoCarousel profile={profile} />
       <div style={{ display: "flex", flexWrap: "wrap", gap: 7, margin: "14px 2px" }}>
         <span style={pill(C.roseSoft, C.rose, C.roseBd)}><Heart size={11} weight="fill" />{profile.loveLang}</span>
@@ -152,6 +160,13 @@ function Discover({ profile, remaining, notes, onSkip, onSpark, onRestart }) {
           <div style={{ fontFamily: PF, fontStyle: "italic", fontSize: 18, lineHeight: 1.45, color: C.text }}>{p.a}</div>
         </Card>
       ))}
+      {showAd && !plus && (
+        <div style={{ border: `1.5px dashed ${C.border}`, borderRadius: 20, padding: "16px 18px", margin: "6px 0 12px", background: "rgba(255,255,255,0.6)" }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: C.muted, letterSpacing: "0.09em", textTransform: "uppercase", fontFamily: LT, marginBottom: 6 }}>Sponsored</div>
+          <div style={{ fontSize: 14, color: C.text, fontFamily: LT, lineHeight: 1.5 }}>Native ad slot for free users, e.g. a café or event in your city.</div>
+          <div style={{ fontSize: 11.5, color: C.muted, fontFamily: LT, marginTop: 4 }}>Demo placeholder · ads never appear inside rounds or chats</div>
+        </div>
+      )}
       <div style={{ fontSize: 11.5, color: C.muted, textAlign: "center", fontFamily: LT, marginTop: 4 }}>{remaining} more nearby</div>
     </div>
     <div style={{ position: "fixed", left: 0, right: 0, bottom: 92, display: "flex", justifyContent: "center", gap: 16, zIndex: 15, pointerEvents: "none" }}>
@@ -444,8 +459,92 @@ function FirstDate({ profile, notes, onBack, onSend }) {
           <a href={`https://www.google.com/maps/search/${encodeURIComponent(`${s.mapsQuery} Bengaluru`)}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, fontWeight: 700, color: C.rose, fontFamily: LT, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}><MapPin size={13} weight="fill" />Find places nearby</a>
         </Card>
       ))}
+      <Outfit vibe={DATE_TO_OUTFIT[profile.dateVibe] || "casual"} notes={notes} />
       <Btn onClick={() => onSend(plan.title)} style={{ background: SPARK, marginTop: 8 }}>Send to {profile.name} →</Btn>
     </div>
+  );
+}
+
+function Outfit({ vibe, notes }) {
+  const [look, setLook] = useState(() => getOutfitLook(vibe));
+  return (
+    <div style={{ marginTop: 22 }}>
+      <div style={{ ...label, display: "flex", alignItems: "center", gap: 6 }}><TShirt size={14} weight="fill" color={C.purple} />What to wear</div>
+      <Note on={notes}>The Outfit Planner from the couples app, reused for first dates. Every shop link carries an affiliate tag, so a purchase on Amazon, Myntra, AJIO or Nykaa earns Heartbeat a commission. That's the third revenue stream, alongside Heartbeat+ and ads.</Note>
+      <Card elevated style={{ padding: "18px 18px 6px" }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
+          <div style={{ fontFamily: PF, fontStyle: "italic", fontSize: 20, color: C.text }}>{look.title}</div>
+          <button onClick={() => setLook(getOutfitLook(vibe, look.title))} style={{ border: "none", background: "transparent", color: C.purple, fontSize: 12, fontWeight: 700, fontFamily: LT, cursor: "pointer", flexShrink: 0 }}>Another look</button>
+        </div>
+        <div style={{ fontSize: 12.5, color: C.muted, fontFamily: LT, lineHeight: 1.55, marginBottom: 14 }}>{look.styling}</div>
+        {look.keyPieces.map(p => <ShoppingRow key={p} piece={p} timezone="Asia/Kolkata" />)}
+        <div style={{ fontSize: 10.5, color: C.muted, fontFamily: LT, fontStyle: "italic", borderTop: `1px solid ${C.border}`, padding: "8px 0 10px" }}>Shopping links may earn Heartbeat a small commission at no extra cost to you.</div>
+      </Card>
+    </div>
+  );
+}
+
+// ── LIMITS, ADS AND HEARTBEAT+ ─────────────────────────────────────
+function Sheet({ onClose, children }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(26,10,5,0.5)", backdropFilter: "blur(6px)", display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center" }}>
+      <div onClick={e => e.stopPropagation()} className="slide-in" style={{ width: "100%", maxWidth: 480, background: C.bg, borderRadius: "28px 28px 0 0", padding: "26px 20px 30px", boxShadow: SHADOWS.xl }}>{children}</div>
+    </div>
+  );
+}
+
+function OutOfSparks({ notes, onAd, onPlus, onClose }) {
+  return (
+    <Sheet onClose={onClose}>
+      <div style={{ textAlign: "center", marginBottom: 18 }}>
+        <div style={{ fontSize: 40, marginBottom: 6 }}>⚡</div>
+        <h3 style={{ fontFamily: PF, fontStyle: "italic", fontWeight: 400, fontSize: 23 }}>You're out of free Sparks</h3>
+        <div style={{ fontSize: 13, color: C.muted, fontFamily: LT, marginTop: 6 }}>They refill tomorrow. Or keep playing now:</div>
+      </div>
+      <Note on={notes}>Daily limits stop spam and protect people's inboxes. They also drive two revenue streams: a rewarded ad for free users, or a Heartbeat+ subscription.</Note>
+      <button onClick={onAd} className="card-hover" style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: "rgba(255,255,255,0.95)", border: `1px solid ${C.border}`, borderRadius: 20, padding: "15px 18px", marginBottom: 10, cursor: "pointer", boxShadow: SHADOWS.md, textAlign: "left" }}>
+        <PlayCircle size={26} color={C.gold} weight="fill" />
+        <div><div style={{ fontSize: 15.5, fontWeight: 700, color: C.text, fontFamily: LT }}>Watch a short ad</div><div style={{ fontSize: 12, color: C.muted, fontFamily: LT }}>Get 3 more Sparks today</div></div>
+      </button>
+      <button onClick={onPlus} className="card-hover" style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: SPARK, border: "none", borderRadius: 20, padding: "15px 18px", cursor: "pointer", boxShadow: SHADOWS.md, textAlign: "left" }}>
+        <Crown size={26} color="#fff" weight="fill" />
+        <div><div style={{ fontSize: 15.5, fontWeight: 700, color: "#fff", fontFamily: LT }}>Get Heartbeat+</div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", fontFamily: LT }}>30 Sparks a day · from ₹149 a week</div></div>
+      </button>
+    </Sheet>
+  );
+}
+
+function AdBreak({ onDone }) {
+  const [left, setLeft] = useState(3);
+  useEffect(() => {
+    if (left <= 0) { const t = setTimeout(onDone, 400); return () => clearTimeout(t); }
+    const t = setTimeout(() => setLeft(left - 1), 1000);
+    return () => clearTimeout(t);
+  }, [left, onDone]);
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "#1A0A05", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, color: "#FAF0E8", fontFamily: LT, padding: 24, textAlign: "center" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", opacity: 0.6 }}>Ad · {left > 0 ? `${left}s` : "done"}</div>
+      <div style={{ width: "100%", maxWidth: 360, aspectRatio: "16 / 9", borderRadius: 18, border: "1.5px dashed rgba(250,240,232,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, opacity: 0.8 }}>A rewarded video ad plays here</div>
+      <div style={{ fontSize: 12.5, opacity: 0.6 }}>Demo placeholder. In the live app this is a real ad network (AdSense on web, AdMob on Android).</div>
+    </div>
+  );
+}
+
+function PlusSheet({ notes, onJoin, onClose }) {
+  const perks = ["30 Sparks a day", "Choose which games you send", "See who Sparked you", "Rematch a closed round", "Verified-only filter", "No ads"];
+  return (
+    <Sheet onClose={onClose}>
+      <div style={{ textAlign: "center", marginBottom: 16 }}>
+        <Crown size={38} color={C.purple} weight="fill" />
+        <h3 style={{ fontFamily: PF, fontStyle: "italic", fontWeight: 400, fontSize: 24, marginTop: 4 }}>Heartbeat+</h3>
+        <div style={{ fontSize: 13, color: C.muted, fontFamily: LT, marginTop: 4 }}>₹149 a week · ₹499 a month · pay with UPI</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+        {perks.map(p => <div key={p} style={{ fontSize: 13, color: C.text, fontFamily: LT, background: "rgba(255,255,255,0.9)", borderRadius: 14, padding: "10px 12px" }}>✓ {p}</div>)}
+      </div>
+      <Note on={notes}>Payments already run on Razorpay in the couples app. Heartbeat+ carries over to couples premium after a match goes official.</Note>
+      <Btn onClick={onJoin} style={{ background: SPARK }}>Start Heartbeat+ (demo)</Btn>
+    </Sheet>
   );
 }
 
@@ -515,20 +614,26 @@ export default function DemoApp() {
   const [history, setHistory] = useState([]); // closed sparks: {profile, status, sync}
   const [matches, setMatches] = useState([]);
   const [view, setView] = useState(null);     // {kind:"chat"|"date"|"official", id}
+  const [sparksLeft, setSparksLeft] = useState(FREE_SPARKS);
+  const [plus, setPlus] = useState(false);
+  const [sheet, setSheet] = useState(null);   // "out" | "ad" | "plus"
   const used = useRef({ wyr: new Set(), gm: new Set(), compat: new Set() });
   const timers = useRef([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
-  const restart = () => { setStarted(false); setTab("discover"); setSpark(null); setHistory([]); setMatches([]); setView(null); used.current = { wyr: new Set(), gm: new Set(), compat: new Set() }; window.scrollTo(0, 0); };
+  const restart = () => { setStarted(false); setTab("discover"); setSpark(null); setHistory([]); setMatches([]); setView(null); setSparksLeft(FREE_SPARKS); setPlus(false); setSheet(null); used.current = { wyr: new Set(), gm: new Set(), compat: new Set() }; window.scrollTo(0, 0); };
   const start = () => { setQueue(profilesFor(showMe)); setStarted(true); window.scrollTo(0, 0); };
   const top = () => window.scrollTo(0, 0);
 
   const sendSpark = () => {
+    if (!plus && sparksLeft <= 0) { setSheet("out"); return; }
+    if (!plus) setSparksLeft(n => n - 1);
     const profile = queue[0];
     setQueue(queue.slice(1));
     setSpark({ profile, roundNo: 1, round: buildRound(used.current), phase: "accepting" });
     top();
   };
+  const adDone = useCallback(() => { setSparksLeft(n => n + 3); setSheet(null); }, []);
   const patch = p => setSpark(s => ({ ...s, ...p }));
   const finishRound = mine => { patch({ phase: "waiting", mine }); top(); };
   const afterWaiting = () => setSpark(s => {
@@ -591,13 +696,13 @@ export default function DemoApp() {
   else if (tab === "matches") body = <ListScreen title="Matches" sub="People who chose you back" empty="No matches yet. Play a round from Discover." notes={notes}
     note="Every match here played a round with you first. Chat opens with the game results pinned at the top."
     items={matches.map(m => ({ key: m.profile.id, name: m.profile.name, photo: m.profile.photos[0], detail: m.messages[m.messages.length - 1].text, onClick: () => { setView({ kind: "chat", id: m.profile.id }); top(); }, badge: { text: `${m.score.sync}%`, bg: C.roseSoft, color: C.rose, bd: C.roseBd } }))} />;
-  else body = <Discover profile={queue[0]} remaining={Math.max(0, queue.length - 1)} notes={notes} onSkip={() => { setQueue(queue.slice(1)); top(); }} onSpark={sendSpark} onRestart={restart} />;
+  else body = <Discover profile={queue[0]} remaining={Math.max(0, queue.length - 1)} notes={notes} sparksLeft={sparksLeft} plus={plus} showAd={(profilesFor(showMe).length - queue.length) % 3 === 2} onSkip={() => { setQueue(queue.slice(1)); top(); }} onSpark={sendSpark} onRestart={restart} />;
 
   const showTabs = !view && !inSpark;
   return (
     <div className="hb-demo" style={{ background: C.bg, minHeight: "100vh", fontFamily: LT, color: C.text }}>
       <style>{STYLES + DEMO_CSS}</style>
-      <TopBar notes={notes} setNotes={setNotes} onRestart={restart} />
+      <TopBar notes={notes} setNotes={setNotes} onRestart={restart} plus={plus} />
       <div style={{ maxWidth: 480, margin: "0 auto", position: "relative" }}>
         {inSpark && ["accepting", "play", "reveal"].includes(spark.phase) && (
           <div style={{ padding: "10px 18px 0" }}><button onClick={() => { setSpark(null); setTab("sparks"); }} style={{ border: "none", background: "transparent", color: C.muted, fontSize: 12.5, fontFamily: LT, cursor: "pointer" }}>← Leave round</button></div>
@@ -605,6 +710,9 @@ export default function DemoApp() {
         {body}
       </div>
       {showTabs && <TabBar tab={tab} setTab={t => { setTab(t); top(); }} badges={{ matches: matches.length }} />}
+      {sheet === "out" && <OutOfSparks notes={notes} onAd={() => setSheet("ad")} onPlus={() => setSheet("plus")} onClose={() => setSheet(null)} />}
+      {sheet === "ad" && <AdBreak onDone={adDone} />}
+      {sheet === "plus" && <PlusSheet notes={notes} onJoin={() => { setPlus(true); setSheet(null); }} onClose={() => setSheet(null)} />}
     </div>
   );
 }

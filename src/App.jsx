@@ -13,6 +13,7 @@ import {
 } from "./data/content.js";
 import { PF, LT, C, SHADOWS, STYLES } from "./ui/theme.js";
 import { Btn, Card, BackBtn, Spinner, Hdr, GradOrb, ScreenWrap } from "./ui/primitives.jsx";
+import { ShoppingRow } from "./ui/ShoppingRow.jsx";
 // ── FIREBASE ───────────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey:     import.meta.env.VITE_FIREBASE_API_KEY,
@@ -1935,43 +1936,6 @@ function HistoryCard({plan,accentColor,accentBd,gradCard,onMarkDone,me}){
 }
 
 // ── OUTFIT PLANNER SCREEN ──────────────────────────────────────────
-const AMAZON_TAG = "heartbeat054-21";
-
-const PLATFORMS_INDIA = [
-  {name:"Amazon",color:"#FF9900",bg:"rgba(255,153,0,0.10)",bd:"rgba(255,153,0,0.25)",getUrl:(query)=>`https://www.amazon.in/s?k=${encodeURIComponent(query)}&tag=${AMAZON_TAG}`,logo:"A"},
-  {name:"Myntra",color:"#FF3F6C",bg:"rgba(255,63,108,0.08)",bd:"rgba(255,63,108,0.20)",getUrl:(query)=>`https://www.myntra.com/${encodeURIComponent(query.split(" ").join("-"))}`,logo:"M"},
-  {name:"Ajio",color:"#001845",bg:"rgba(0,24,69,0.06)",bd:"rgba(0,24,69,0.15)",getUrl:(query)=>`https://www.ajio.com/search/?text=${encodeURIComponent(query)}`,logo:"Aj"},
-  {name:"Nykaa",color:"#FC2779",bg:"rgba(252,39,121,0.08)",bd:"rgba(252,39,121,0.20)",getUrl:(query)=>`https://www.nykaafashion.com/search?q=${encodeURIComponent(query)}`,logo:"N"},
-];
-
-const PLATFORMS_INTL = [
-  {name:"Amazon",color:"#FF9900",bg:"rgba(255,153,0,0.10)",bd:"rgba(255,153,0,0.25)",getUrl:(query)=>`https://www.amazon.com/s?k=${encodeURIComponent(query)}&tag=${AMAZON_TAG}`,logo:"A"},
-  {name:"ASOS",color:"#2D2D2D",bg:"rgba(45,45,45,0.06)",bd:"rgba(45,45,45,0.15)",getUrl:(query)=>`https://www.asos.com/search/?q=${encodeURIComponent(query)}`,logo:"AS"},
-  {name:"H&M",color:"#E50010",bg:"rgba(229,0,16,0.06)",bd:"rgba(229,0,16,0.15)",getUrl:(query)=>`https://www2.hm.com/en_gb/search-results.html?q=${encodeURIComponent(query)}`,logo:"H"},
-  {name:"Zara",color:"#1A1A1A",bg:"rgba(26,26,26,0.06)",bd:"rgba(26,26,26,0.15)",getUrl:(query)=>`https://www.zara.com/us/en/search?searchTerm=${encodeURIComponent(query)}`,logo:"Z"},
-];
-
-function ShoppingRow({piece,timezone}){
-  const isIndia=timezone==="Asia/Kolkata"||timezone==="Asia/Colombo"||timezone==="Asia/Dhaka";
-  const platforms=isIndia?PLATFORMS_INDIA:PLATFORMS_INTL;
-  return (
-    <div style={{marginBottom:18}}>
-      <div style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:LT,marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
-        <span style={{color:C.purple}}>✦</span> {piece}
-      </div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        {platforms.map(p=>(
-          <a key={p.name} href={p.getUrl(piece)} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:6,background:p.bg,border:`1px solid ${p.bd}`,borderRadius:20,padding:"6px 12px",textDecoration:"none",fontSize:12,fontWeight:700,color:p.color,fontFamily:LT,transition:"all 0.2s",whiteSpace:"nowrap"}}
-            onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=SHADOWS.sm;}}
-            onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
-            <span style={{width:18,height:18,borderRadius:"50%",background:p.color,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{p.logo}</span>
-            {p.name}
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-}
 function OutfitPlannerScreen({me,partner,userKey,roomData,update,addN,back}){
   const myUser = roomData?.users?.[userKey];
   const pk=userKey==="A"?"B":"A";

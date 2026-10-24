@@ -48,7 +48,23 @@ A dedicated community and safety lead is the second hire.
 - **One city:** dating apps depend on having enough people nearby, so concentrating in one city is the only way to make the experience good early.
 
 **How do you make money?**
-Freemium. Heartbeat+ costs about ₹49 a week or ₹149–199 a month, paid by UPI through Razorpay, which already works in the couples app. The model assumes 5% of monthly active users pay, the low end of Redseer's 5–15% range for Indian dating apps.
+Three streams, all without AI costs:
+1. **Heartbeat+ subscription (the core).** ₹149 a week or ₹499 a month (₹1,299 for 3 months), paid by UPI through Razorpay, which already works in the couples app. The model assumes 5% of monthly active users pay, the low end of Redseer's 5–15% range.
+2. **Ads, for free users only.** Labelled sponsored cards in Discover, and an optional "watch an ad for 3 more Sparks". There are never ads inside rounds, reveals or chats. "No ads" is also a Heartbeat+ perk.
+3. **Affiliate commission.** The Outfit Planner suggests what to wear on a date, with shop links to Amazon (already tagged with our Associates ID), Myntra, AJIO and Nykaa. Fashion commissions run about 4–8% after network cuts.
+
+Over 18 months the conservative model has Heartbeat+ at ₹16.2 L, ads at ₹1.0 L and affiliate at ₹0.08 L. Indian ad rates are low, so subscriptions do the heavy lifting and the other two add margin. Each grows with users, and both get better once the Android app opens up AdMob and in-app shopping.
+
+**Why ₹499 a month?**
+It's priced against what Indians already pay for dating apps (App Store India, October 2026):
+- **Below the premium apps:** Bumble Premium is ₹799 a month and Hinge+ ₹1,199.
+- **Above the budget end:** QuackQuack tests ₹299–589.
+- **Weekly entry point:** ₹149 a week sits between Aisle and Happn's ₹99 and Bumble's ₹279–399.
+
+The model still assumes only 5% of monthly users pay, the low end of the 5–15% Redseer reports at market prices. Prices will be tested by cohort in the beta.
+
+**Won't ads make it feel cheap?**
+Only free users see them. They never appear during a game or a conversation, and rewarded ads only play when someone chooses to watch one. TrulyMadly and Aisle both run ads in India alongside paid plans.
 
 **Why no AI?**
 - **Cost:** AI would add a running cost to every round.
@@ -71,7 +87,7 @@ They share one codebase, one set of games and one brand. Dating is the acquisiti
 - **Regulation:** the work needed is DPDP Act consent and deletion, a grievance officer under the IT Rules 2021, and an 18+ gate. These are budgeted in legal.
 
 **How long does ₹75 lakh last, and what's next?**
-About 18 months. The model leaves about ₹12.5 lakh at month 18. The goal is a seed round once the beta shows round completion of at least 60%, week-1 retention of at least 25%, and at least 5% of users paying.
+About 18 months. The model leaves about ₹22 lakh at month 18. The goal is a seed round once the beta shows round completion of at least 60%, week-1 retention of at least 25%, and at least 5% of users paying.
 
 ## Data room checklist
 

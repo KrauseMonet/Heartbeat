@@ -309,7 +309,7 @@ Optional and nearly free later: Google Cloud Vision SafeSearch has a free monthl
 - **Android-heavy audience.** Chrome on Android supports web push, so the PWA works well before a native app exists.
   Optimise for low-end phones: Cloudinary `f_auto,q_auto,w_720` images, lazy loading, a small bundle (split the 500 KB+ chunk).
 - **Payments.** Razorpay only: UPI, cards, UPI Autopay for subscriptions. Park the Paddle routes until there's a global launch.
-- **Pricing to test.** A weekly pass (around ₹49) and monthly (around ₹149–199). Small UPI amounts convert better than large annual plans.
+- **Pricing.** ₹149 a week, ₹499 a month, ₹1,299 for 3 months: below Bumble (₹799 a month) and Hinge (₹1,199), above Aisle and Happn's ₹99 weekly passes. Test prices by cohort once the beta has enough payers, as the incumbents do.
 - **Login.** Google sign-in and email, which are free. Phone OTP costs money per SMS, so add it later if fake accounts become a problem.
 - **Legal.** Update `terms.html` and `privacy.html` for dating: sensitive data such as orientation, consent, and deletion under the DPDP Act 2023.
   Name a **grievance officer** with a response timeline (IT Rules 2021). 18+ only. Get a lawyer to review before public launch.
@@ -317,18 +317,69 @@ Optional and nearly free later: Google Cloud Vision SafeSearch has a free monthl
 
 ---
 
-## 9. Monetization (Razorpay, no AI)
+## 9. Monetization: three streams, no AI
 
-| Free | Heartbeat+ (dating) |
+Heartbeat earns three ways. Subscriptions carry the business; ads and affiliate commission add to it without touching the core experience.
+
+### 9.1 Heartbeat+ subscription (main revenue)
+
+₹149 a week, ₹499 a month or ₹1,299 for 3 months, paid by UPI or card through Razorpay.
+
+What others charge in India (App Store India, October 2026):
+
+| App | Weekly | Monthly |
+|---|---|---|
+| Aisle | from ₹99 | not published |
+| Happn | ₹99 | — |
+| QuackQuack | — | ₹299–589 (price tests) |
+| **Heartbeat+** | **₹149** | **₹499** |
+| Bumble Premium | ₹279–399 | ₹799 |
+| Hinge+ / HingeX | — | ₹1,199 / ₹1,499 |
+
+| Free | Heartbeat+ |
 |---|---|
 | 10 Sparks/day, 5 active | 30 Sparks/day, 15 active |
 | Default Spark Round | **Choose the games** you send (e.g. Wordle Duel instead of Compat) |
 | — | **See who Sparked you** before accepting |
 | — | **Rematch** a closed Spark once |
 | Age and area filters | Verified-only, love-language, and favorite-games filters |
+| Ads shown | **No ads** |
 | — | Premium **themed packs**: travel, foodie, deep talk (hand-written) |
 
 Premium carries over when a match becomes a couple room (`isPremium` already checks both the room and the user).
+
+### 9.2 Ads (free users only)
+
+- **Where ads appear:**
+  - **Native sponsored cards** in Discover, at most one every few profiles, clearly labelled.
+  - **Rewarded ads**: when someone runs out of free Sparks, they can watch a short ad for 3 more. Viewers choose to watch, and the reward is stated before the ad plays, as AdMob's rules require.
+- **Where they never appear:** inside a Spark Round, the reveal, chat or the decision screen. Those moments are the product, and an ad there would cost trust.
+- **Networks:** Google AdSense on the web now, AdMob once the Android app ships. Dating is allowed on both. Sexual content and "compensated dating" are not, and Heartbeat is responsible for what users post, so ad pages depend on the moderation in §7.
+- **Expectations:** Indian ad rates are low (often quoted at 8–12x below the US). TrulyMadly earned ₹53 L from ads against ₹1.95 Cr from paid plans in FY18. Ads are a supporting stream, and "no ads" is itself a reason to buy Heartbeat+.
+
+### 9.3 Affiliate commission (Outfit Planner)
+
+- **Where it shows up:** the Outfit Planner suggests what to wear for a date, with shop links for each piece on Amazon, Myntra, AJIO and Nykaa.
+  - **Dating:** after a match, inside "Plan our first date".
+  - **Couples:** in the existing Outfit Planner.
+- **Amazon:** already tagged with our Associates ID (`heartbeat054-21`). Fashion pays 7–7.5% in the official schedule, with a 24-hour cookie.
+- **Myntra, AJIO and Nykaa Fashion:** these pay through affiliate networks (e.g. Cuelinks, where Myntra pays 3.75–7.5%). Set `VITE_AFFILIATE_WRAP` to the network's deep-link prefix and those links start earning. Code: `src/lib/shopping.js`.
+- **Also worth joining:** Flipkart Affiliate (8% on fashion, direct) and Nykaa's own programme (8%).
+- **Rules:**
+  - **Disclosure:** every shopping card already says the links may earn a commission.
+  - **Apps:** Amazon requires apps to be approved and forbids loading Amazon pages inside an in-app browser.
+- **Next step:** track outbound clicks (an analytics event per click) so real conversion can replace the model's assumption.
+- **Later:** the Date Planner can earn the same way through restaurant and event bookings (e.g. table reservations and tickets) once there's enough volume to sign partners.
+
+### 9.4 What the model assumes (conservative)
+
+| Stream | Key inputs | 18-month net revenue |
+|---|---|---|
+| Heartbeat+ | 5% of monthly active users pay; 60% on ₹499 monthly, 40% buying two ₹149 weekly passes a month (₹419 per payer), less 18% GST and 2% fees | ₹16.19 L |
+| Ads | 60 native impressions at ₹15 per 1,000 + 4 rewarded views at ₹45 per 1,000, per free user per month | ₹0.96 L |
+| Affiliate | 15% of users open outfit ideas, 1.5 clicks each, 0.8% buy, ₹1,100 orders, 4% commission | ₹0.08 L |
+
+At the research's mid-case rates, month-18 ad revenue would be about ₹38k a month rather than ₹17k, and affiliate about ₹5k rather than ₹1.3k. Replace all of these with real AdSense, AdMob and network numbers after launch.
 
 ---
 
