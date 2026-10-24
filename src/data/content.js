@@ -159,6 +159,40 @@ export function getDailyQuestion() {
   return all[day % all.length];
 }
 
+// ── GUESS ME (multiple choice, for Spark Rounds) ──────────────────
+export const GUESS_ME = [
+  {id:"gm_001", q:"Your ideal Sunday?", options:["Sleep till noon","Brunch with friends","A long drive","Netflix and chai"]},
+  {id:"gm_002", q:"Pick a midnight snack", options:["Maggi","Ice cream","Leftover biryani","Chips straight from the packet"]},
+  {id:"gm_003", q:"On a trip, you're the one who…", options:["Plans every hour","Finds the food spots","Takes all the photos","Just goes with the flow"]},
+  {id:"gm_004", q:"Your go-to karaoke pick?", options:["90s Bollywood","Arijit, obviously","English pop","I'd rather hold the mic for others"]},
+  {id:"gm_005", q:"How do you recharge after a long week?", options:["Alone time","A night out","Family dinner","Gym or a run"]},
+  {id:"gm_006", q:"Chai or coffee?", options:["Cutting chai","Filter coffee","Fancy café coffee","Neither, I'm a water person"]},
+  {id:"gm_007", q:"Your texting style?", options:["Instant replies","Voice notes","Memes only","Reply three days later"]},
+  {id:"gm_008", q:"Pick a dream holiday", options:["Ladakh road trip","Goa beaches","Europe backpacking","Japan in spring"]},
+  {id:"gm_009", q:"Your role in the friend group?", options:["The planner","The therapist","The comedian","The one who's always late"]},
+  {id:"gm_010", q:"What would you cook to impress someone?", options:["Pasta","Mom's dal recipe","I'd order in, with confidence","Breakfast in bed"]},
+  {id:"gm_011", q:"Watching a cricket match, you're…", options:["Screaming at the TV","Only here for the snacks","Checking the score on my phone","Asking who's batting"]},
+  {id:"gm_012", q:"Monsoon plan?", options:["Pakoras and a window","Long drive in the rain","Dancing in it","Staying very dry indoors"]},
+  {id:"gm_013", q:"Your phone wallpaper is…", options:["A pet","Family photo","A landscape","Still the default"]},
+  {id:"gm_014", q:"Pick a first-date spot", options:["Quiet café","Street food walk","Bowling or games","Rooftop with a view"]},
+  {id:"gm_015", q:"How many unread notifications right now?", options:["Zero, always","Under 10","Under 100","Don't ask"]},
+  {id:"gm_016", q:"What's your morning like?", options:["Up at 6, gym done","Snooze button three times","Coffee before words","Depends on the night before"]},
+  {id:"gm_017", q:"Pick a superpower", options:["Teleportation","Reading minds","Pausing time","Speaking every language"]},
+  {id:"gm_018", q:"At a wedding, you're…", options:["First on the dance floor","At the food counter","Catching up with relatives","Planning my exit"]},
+  {id:"gm_019", q:"Your comfort movie genre?", options:["Rom-com","Thriller","Animated","Old Bollywood classics"]},
+  {id:"gm_020", q:"Most likely to spend money on…", options:["Food","Travel","Clothes and shoes","Gadgets"]},
+  {id:"gm_021", q:"Pick a pet", options:["Dog","Cat","Fish, low effort","No pets, just plants"]},
+  {id:"gm_022", q:"How do you handle a fight?", options:["Talk it out right away","Need space first","Make a joke to break the ice","Write a long message"]},
+  {id:"gm_023", q:"Your festival energy?", options:["Diwali lights, all of them","Holi, bring the colours","Eid feast, every year","Any festival with good food"]},
+  {id:"gm_024", q:"The playlist on a long drive is…", options:["Old Hindi songs","Punjabi bangers","Indie and lo-fi","Podcasts, actually"]},
+  {id:"gm_025", q:"What makes you laugh the most?", options:["Stand-up comedy","Dumb memes","Friends' inside jokes","Myself, honestly"]},
+  {id:"gm_026", q:"Pick a weekend skill to learn", options:["Pottery","Salsa","Guitar","Cooking a new cuisine"]},
+  {id:"gm_027", q:"How do you show you care?", options:["Kind words","Spending time","Small gifts","Doing things for them"]},
+  {id:"gm_028", q:"Your city vibe?", options:["Busy and buzzing","Quiet neighbourhood","Near the sea","Hills, always hills"]},
+  {id:"gm_029", q:"Late for plans, you…", options:["Am never late","Send a 'on my way' from home","Call with a long story","Show up with snacks as an apology"]},
+  {id:"gm_030", q:"Pick a perfect gift", options:["A handwritten letter","A surprise trip","Something I mentioned once","Food. Always food"]},
+];
+
 // ── WOULD YOU RATHER ──────────────────────────────────────────────
 export const WYR_OPTIONS = [
   {a:"Know what people really think of you", b:"Never know but always feel liked"},

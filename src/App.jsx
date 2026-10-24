@@ -11,6 +11,8 @@ import {
   getDateTemplate, getOutfitLook, BUCKET_SUGGESTIONS,
   getWeeklyCheckIn, getDailyWordle, getPictionaryWords,
 } from "./data/content.js";
+import { PF, LT, C, SHADOWS, STYLES } from "./ui/theme.js";
+import { Btn, Card, BackBtn, Spinner, Hdr, GradOrb, ScreenWrap } from "./ui/primitives.jsx";
 // ── FIREBASE ───────────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey:     import.meta.env.VITE_FIREBASE_API_KEY,
@@ -117,91 +119,6 @@ const TIMEZONES = [
 const MOODS=[{e:"🥰",l:"Missing you"},{e:"😊",l:"Happy"},{e:"😌",l:"Calm"},{e:"🤩",l:"Excited"},{e:"😴",l:"Tired"},{e:"😔",l:"Low"},{e:"🤭",l:"Playful"},{e:"😤",l:"Stressed"}];
 const LOVE_LANGS=[{key:"words",title:"Words of Affirmation",desc:"Compliments & kind words"},{key:"time",title:"Quality Time",desc:"Undivided attention"},{key:"gifts",title:"Receiving Gifts",desc:"Thoughtful surprises"},{key:"acts",title:"Acts of Service",desc:"Doing things that help"},{key:"touch",title:"Physical Touch",desc:"Closeness & presence"}];
 
-// ── DESIGN ─────────────────────────────────────────────────────────────────
-const PF = "'Playfair Display', Georgia, serif";
-const LT = "'Lato', system-ui, sans-serif";
-
-const C = {
-  bg:"#FFF6F3", surface:"rgba(255,255,255,0.97)", glass:"rgba(255,246,243,0.75)",
-  text:"#1A0A05", muted:"#9A7A68", inverse:"#FFF6F3",
-  rose:"#D4526A", roseSoft:"#FDE8ED", roseBd:"rgba(212,82,106,0.2)", roseGlow:"rgba(212,82,106,0.15)",
-  accent:"#C4522A", accentSoft:"#FAE8DF", accentBd:"rgba(196,82,42,0.2)",
-  gold:"#D4922A", goldSoft:"#FDF3E0", goldBd:"rgba(212,146,42,0.25)",
-  sage:"#6B8F71", sageSoft:"#EEF4EF", sageBd:"rgba(107,143,113,0.25)",
-  purple:"#8B6BAD", purpleSoft:"#F3EFFC", purpleBd:"rgba(139,107,173,0.25)",
-  border:"rgba(212,82,106,0.10)", borderSoft:"rgba(212,82,106,0.06)",
-  gradHero:"linear-gradient(145deg,#FFB3B3 0%,#FFCDB8 40%,#FFE8D6 100%)",
-  gradHome:"linear-gradient(180deg,#FFD6D6 0%,#FFF0EC 50%,#FFF6F3 100%)",
-  gradPlay:"linear-gradient(180deg,#FFD0E8 0%,#FFF0F8 50%,#FFF6F3 100%)",
-  gradUs:"linear-gradient(180deg,#FFE0C8 0%,#FFF5EE 50%,#FFF6F3 100%)",
-  gradProfile:"linear-gradient(180deg,#E8D0FF 0%,#F8F0FF 50%,#FFF6F3 100%)",
-  gradCard:"linear-gradient(135deg,rgba(255,255,255,0.99) 0%,rgba(255,246,243,0.94) 100%)",
-  gradDark:"linear-gradient(145deg,#2A0F08 0%,#1A0A05 100%)",
-  gradRose:"linear-gradient(135deg,#F093A0 0%,#D4526A 100%)",
-  gradGold:"linear-gradient(135deg,#F0C060 0%,#D4922A 100%)",
-  gradSage:"linear-gradient(135deg,#90C498 0%,#6B8F71 100%)",
-  gradPeach:"linear-gradient(135deg,#FFB3A0 0%,#FF8C78 100%)",
-  gradWarm:"linear-gradient(135deg,#FFD6C8 0%,#FFBBA8 100%)",
-};
-
-const SHADOWS = {
-  sm:"0 2px 8px rgba(212,82,106,0.08),0 1px 3px rgba(212,82,106,0.05)",
-  md:"0 8px 24px rgba(212,82,106,0.10),0 2px 8px rgba(212,82,106,0.06)",
-  lg:"0 20px 48px rgba(212,82,106,0.14),0 8px 20px rgba(212,82,106,0.08)",
-  xl:"0 32px 64px rgba(212,82,106,0.18),0 12px 28px rgba(212,82,106,0.10)",
-};
-
-const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Lato:wght@300;400;600;700&display=swap');
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-  html{scroll-behavior:smooth;}
-  body{background:#FFF6F3;font-family:${LT};color:#1A0A05;-webkit-font-smoothing:antialiased;}
-body::before{content:'';position:fixed;inset:0;background:url('/images/bg.jpg') center/cover no-repeat;opacity:0.07;pointer-events:none;z-index:0;}
-  @keyframes fadeRise{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
-  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-  @keyframes hbBeat{0%,100%{transform:scale(1)}30%{transform:scale(1.22)}65%{transform:scale(1.06)}}
-  @keyframes hbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-  @keyframes hbSpin{to{transform:rotate(360deg)}}
-  @keyframes hbRing1{0%{transform:scale(1);opacity:0.5}100%{transform:scale(2.2);opacity:0}}
-  @keyframes hbRing2{0%{transform:scale(1);opacity:0.35}100%{transform:scale(2.8);opacity:0}}
-  @keyframes slowPulse{0%,100%{box-shadow:0 0 0 0 rgba(212,82,106,0.4)}60%{box-shadow:0 0 0 18px rgba(212,82,106,0)}}
-  @keyframes fastPulse{0%,100%{box-shadow:0 0 0 0 rgba(212,82,106,0.6);transform:scale(1)}50%{box-shadow:0 0 0 22px rgba(212,82,106,0);transform:scale(1.10)}}
-  @keyframes heartFloat{0%,100%{transform:scale(1) translateY(0)}50%{transform:scale(1.08) translateY(-4px)}}
-  @keyframes slideIn{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
-  @keyframes stagger1{0%{opacity:0;transform:translateY(16px)}100%{opacity:1;transform:none}}
-  @keyframes shake{0%,100%{transform:translateX(0)}10%,50%,90%{transform:translateX(-4px)}30%,70%{transform:translateX(4px)}}
-  @keyframes hbPartnerPulse{0%{transform:scale(1);box-shadow:0 0 0 0 rgba(212,146,42,0.7)}50%{transform:scale(1.18);box-shadow:0 0 0 28px rgba(212,146,42,0)}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(212,146,42,0)}}
-  @keyframes hbGoldGlow{0%,100%{box-shadow:0 10px 32px rgba(212,146,42,0.55),0 0 0 0 rgba(212,146,42,0.4)}50%{box-shadow:0 10px 48px rgba(212,146,42,0.9),0 0 0 20px rgba(212,146,42,0)}}
-  @keyframes hbHeartPop{0%{transform:scale(1)}20%{transform:scale(1.35)}40%{transform:scale(0.9)}60%{transform:scale(1.15)}80%{transform:scale(0.97)}100%{transform:scale(1)}}
-  .hb-partner-pulse{animation:hbPartnerPulse 0.7s ease-out!important;}
-  .hb-gold-glow{animation:hbGoldGlow 1.8s ease-in-out infinite;}
-  .hb-heart-pop{animation:hbHeartPop 0.5s cubic-bezier(0.22,1,0.36,1)!important;}
-
-  .fade-rise{animation:fadeRise 0.45s cubic-bezier(0.22,1,0.36,1) both;}
-  .fade-in{animation:fadeIn 0.35s ease both;}
-  .hb-float{animation:hbFloat 3.8s ease-in-out infinite;}
-  .hb-beat{animation:hbBeat 0.5s ease-in-out;}
-  .hb-spin{animation:hbSpin 1.4s linear infinite;}
-  .hb-slow{animation:slowPulse 2.4s ease-in-out infinite;}
-  .hb-fast{animation:fastPulse 0.45s ease-in-out infinite;}
-  .heart-float{animation:heartFloat 2.2s ease-in-out infinite;}
-  .slide-in{animation:slideIn 0.4s cubic-bezier(0.22,1,0.36,1) both;}
-
-  .card-hover{transition:transform 0.22s cubic-bezier(0.22,1,0.36,1),box-shadow 0.22s ease;}
-  .card-hover:hover{transform:translateY(-3px);}
-  .card-hover:active{transform:scale(0.97);}
-
-  .s1{animation:fadeRise 0.4s 0.05s both;}
-  .s2{animation:fadeRise 0.4s 0.12s both;}
-  .s3{animation:fadeRise 0.4s 0.19s both;}
-  .s4{animation:fadeRise 0.4s 0.26s both;}
-  .s5{animation:fadeRise 0.4s 0.33s both;}
-  .s6{animation:fadeRise 0.4s 0.40s both;}
-
-  ::-webkit-scrollbar{width:0;height:0;}
-  input,textarea,select{font-family:${LT};}
-`;
-
 // ── PRIMITIVE COMPONENTS ───────────────────────────────────────────────────
 function Field({label,textarea,select,children,style:es,...p}){
   const [f,setF]=useState(false);
@@ -216,70 +133,14 @@ function Field({label,textarea,select,children,style:es,...p}){
   );
 }
 
-function Btn({children,variant="fill",style:s,disabled,onClick,small}){
-  const v={
-    fill:{background:C.gradRose,color:"#fff",border:"none",boxShadow:SHADOWS.md},
-    gold:{background:C.gradGold,color:"#fff",border:"none",boxShadow:SHADOWS.md},
-    sage:{background:C.gradSage,color:"#fff",border:"none",boxShadow:SHADOWS.md},
-    dark:{background:C.gradDark,color:"#FAF0E8",border:"none",boxShadow:SHADOWS.lg},
-    outline:{background:"transparent",color:C.rose,border:`1.5px solid ${C.rose}`,boxShadow:"none"},
-    ghost:{background:"rgba(255,255,255,0.65)",color:C.muted,border:`1px solid ${C.border}`,boxShadow:SHADOWS.sm},
-    glass:{background:"rgba(255,255,255,0.55)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",color:C.text,border:"1px solid rgba(255,255,255,0.75)",boxShadow:SHADOWS.sm},
-  };
-  return (
-    <button disabled={disabled} onClick={onClick} className="card-hover" style={{display:"block",width:"100%",borderRadius:18,padding:small?"10px 18px":"15px 24px",fontFamily:LT,fontSize:small?13:15,fontWeight:700,letterSpacing:"0.04em",cursor:disabled?"not-allowed":"pointer",transition:"all 0.2s",opacity:disabled?0.45:1,...v[variant],...s}}>{children}</button>
-  );
-}
-
-function Card({children,style:s,glass,elevated,gradient,onClick,layer}){
-  return (
-    <div onClick={onClick} className={onClick?"card-hover":""} style={{background:gradient||C.gradCard,backdropFilter:glass?"blur(20px)":"none",WebkitBackdropFilter:glass?"blur(20px)":"none",borderRadius:20,padding:22,border:glass?"1px solid rgba(255,255,255,0.6)":"1px solid rgba(255,255,255,0.92)",boxShadow:elevated?SHADOWS.lg:SHADOWS.md,marginBottom:14,position:"relative",overflow:layer?"hidden":"visible",cursor:onClick?"pointer":"default",...s}}>
-      {layer&&<div style={{position:"absolute",inset:0,background:"linear-gradient(135deg,rgba(255,255,255,0.18) 0%,rgba(255,255,255,0) 100%)",pointerEvents:"none",borderRadius:20,zIndex:1}}/>}
-      <div style={{position:"relative",zIndex:2}}>{children}</div>
-    </div>
-  );
-}
-
 function Avatar({name,photo,size=48,gradient=C.gradRose}){
   return photo
     ?<img src={photo} alt={name} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",flexShrink:0,border:"3px solid rgba(255,255,255,0.9)",boxShadow:SHADOWS.md}}/>
     :<div style={{width:size,height:size,borderRadius:"50%",background:gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.34,fontWeight:700,color:"#fff",flexShrink:0,border:"3px solid rgba(255,255,255,0.9)",boxShadow:SHADOWS.md,fontFamily:LT}}>{initials(name)}</div>;
 }
 
-function BackBtn({onClick}){
-  return (
-    <button onClick={onClick} style={{background:"rgba(255,255,255,0.75)",border:"1px solid rgba(255,255,255,0.92)",borderRadius:14,cursor:"pointer",padding:"9px 11px",lineHeight:1,boxShadow:SHADOWS.sm,backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",display:"flex",alignItems:"center",transition:"all 0.2s"}}
-      onMouseEnter={e=>e.currentTarget.style.boxShadow=SHADOWS.md}
-      onMouseLeave={e=>e.currentTarget.style.boxShadow=SHADOWS.sm}>
-      <ArrowLeft size={20} color={C.text}/>
-    </button>
-  );
-}
-
-function Spinner({text="One moment..."}){
-  return (
-    <div style={{textAlign:"center",padding:"48px 0",color:C.muted}}>
-      <div style={{display:"inline-block",marginBottom:14}} className="hb-spin"><Sparkle size={32} color={C.rose}/></div>
-      <div style={{fontSize:14,fontFamily:LT}}>{text}</div>
-    </div>
-  );
-}
-
 function ErrBox({msg}){
   return msg?<div style={{background:"rgba(212,82,106,0.07)",border:"1px solid rgba(212,82,106,0.22)",borderRadius:14,padding:"12px 16px",marginBottom:16,fontSize:13,color:C.rose,fontFamily:LT,display:"flex",alignItems:"center",gap:10}}><X size={16} color={C.rose}/>{msg}</div>:null;
-}
-
-function Hdr({title,sub,back,right}){
-  return (
-    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:26}}>
-      <BackBtn onClick={back}/>
-      <div style={{flex:1}}>
-        <h2 style={{fontFamily:PF,fontSize:22,fontWeight:400,fontStyle:"italic",color:C.text,lineHeight:1.2}}>{title}</h2>
-        {sub&&<div style={{fontSize:12,color:C.muted,fontFamily:LT,marginTop:3}}>{sub}</div>}
-      </div>
-      {right}
-    </div>
-  );
 }
 
 function PhotoUpload({current,onUpload,size=80}){
@@ -295,14 +156,6 @@ function PhotoUpload({current,onUpload,size=80}){
       <input ref={ref} type="file" accept="image/*" onChange={handle} style={{display:"none"}}/>
     </div>
   );
-}
-
-function GradOrb({size=320,top=-80,color1="rgba(255,150,130,0.35)",color2="rgba(255,200,180,0.12)"}){
-  return <div style={{position:"absolute",top,left:"50%",transform:"translateX(-50%)",width:size,height:size,borderRadius:"50%",background:`radial-gradient(circle,${color1} 0%,${color2} 60%,transparent 100%)`,filter:"blur(40px)",pointerEvents:"none",zIndex:0}}/>;
-}
-
-function ScreenWrap({gradient,children,pb}){
-  return <div style={{minHeight:"100vh",background:gradient||C.gradHome,paddingBottom:pb||100}}>{children}</div>;
 }
 
 // ── PREMIUM LOCK ───────────────────────────────────────────────────────────
