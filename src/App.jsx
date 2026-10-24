@@ -8,9 +8,11 @@ import {
   getDailyQuestion, getDailyWYR, getNHIESet,
   getTruthQuestion, getDare, getCompatSet,
   getDesirePrompt, getWatchSuggestions,
-  getDateTemplate, BUCKET_SUGGESTIONS,
+  getDateTemplate, getOutfitLook, BUCKET_SUGGESTIONS,
   getWeeklyCheckIn, getDailyWordle, getPictionaryWords,
 } from "./data/content.js";
+import { PF, LT, C, SHADOWS, STYLES } from "./ui/theme.js";
+import { Btn, Card, BackBtn, Spinner, Hdr, GradOrb, ScreenWrap } from "./ui/primitives.jsx";
 // ── FIREBASE ───────────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey:     import.meta.env.VITE_FIREBASE_API_KEY,
@@ -48,83 +50,6 @@ async function sendPushToPartner(partnerUid, title, body) {
       body: JSON.stringify({ token, title, body }),
     });
   } catch(e) { console.error("Push failed:", e); }
-}
-
-// ── CLAUDE ─────────────────────────────────────────────────────────────────
-async function callClaude(system, msg) {
-  const r = await fetch("/api/claude", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, message: msg }),
-  });
-let d;
-
-try {
-  d = await r.json();
-} catch (e) {
-  console.error("Invalid JSON response from server");
-  throw new Error("Server error. Please try again.");
-}  if (!r.ok) throw new Error(d.error || "Claude API failed");
-  return d.text;
-}
-
-// ── COUPLE CONTEXT BUILDER ─────────────────────────────────────────────────
-function buildCoupleContext(me, partner, roomData, userKey) {
-  const pk = userKey === "A" ? "B" : "A";
-  const qaEntries = Object.entries(roomData || {})
-    .filter(([k]) => k.startsWith("qa_"))
-    .filter(([_, v]) => v?.answers?.[userKey] && v?.answers?.[pk])
-    .sort(([a], [b]) => b.localeCompare(a))
-    .slice(0, 8);
-
-  const qaHistory = qaEntries.map(([_, v]) =>
-    `Q: ${v.question}\n${me?.name}: ${v.answers[userKey]}\n${partner?.name}: ${v.answers[pk]}`
-  ).join("\n\n");
-
-  const recentCheckins = Object.entries(roomData || {})
-    .filter(([k]) => k.startsWith("checkin_"))
-    .sort(([a], [b]) => b.localeCompare(a))
-    .slice(0, 3)
-    .map(([_, v]) => {
-      const scores = v?.ratings || {};
-      return `Scores: ${JSON.stringify(scores)}. Reflection: ${v?.reflections?.[userKey] || "none"}`;
-    }).join("\n");
-
-  const wyrChoices = Object.entries(roomData || {})
-    .filter(([k]) => k.startsWith("wyr_"))
-    .filter(([_, v]) => v?.choices?.[userKey] && v?.choices?.[pk])
-    .slice(0, 5)
-    .map(([_, v]) => `${me?.name} chose "${v.choices[userKey]==="a"?v.a:v.b}", ${partner?.name} chose "${v.choices[pk]==="a"?v.a:v.b}"`)
-    .join("\n");
-
-  const desireHistory = (roomData?.desireHistory || []).slice(-5)
-    .map(d => `[${d.category}] ${d.prompt}`)
-    .join("\n");
-
-  const bucketDone = (roomData?.bucket || []).filter(i => i.done).map(i => i.text).join(", ");
-
-  return `
-COUPLE PROFILE:
-Names: ${me?.name} & ${partner?.name}
-Together: ${roomData?.anniversary ? Math.floor((Date.now() - new Date(roomData.anniversary)) / 86400000) + " days" : "unknown"}
-Distance: ${roomData?.distance || "unknown"}
-Couple name: ${roomData?.coupleName || "not set"}
-
-RECENT Q&A ANSWERS (last 8):
-${qaHistory || "none yet"}
-
-RECENT CHECK-IN SCORES:
-${recentCheckins || "none yet"}
-
-WOULD YOU RATHER CHOICES:
-${wyrChoices || "none yet"}
-
-DESIRE PROMPTS EXPLORED:
-${desireHistory || "none yet"}
-
-BUCKET LIST COMPLETED:
-${bucketDone || "none yet"}
-`.trim();
 }
 
 // ── CLOUDINARY ─────────────────────────────────────────────────────────────
@@ -194,91 +119,6 @@ const TIMEZONES = [
 const MOODS=[{e:"🥰",l:"Missing you"},{e:"😊",l:"Happy"},{e:"😌",l:"Calm"},{e:"🤩",l:"Excited"},{e:"😴",l:"Tired"},{e:"😔",l:"Low"},{e:"🤭",l:"Playful"},{e:"😤",l:"Stressed"}];
 const LOVE_LANGS=[{key:"words",title:"Words of Affirmation",desc:"Compliments & kind words"},{key:"time",title:"Quality Time",desc:"Undivided attention"},{key:"gifts",title:"Receiving Gifts",desc:"Thoughtful surprises"},{key:"acts",title:"Acts of Service",desc:"Doing things that help"},{key:"touch",title:"Physical Touch",desc:"Closeness & presence"}];
 
-// ── DESIGN ─────────────────────────────────────────────────────────────────
-const PF = "'Playfair Display', Georgia, serif";
-const LT = "'Lato', system-ui, sans-serif";
-
-const C = {
-  bg:"#FFF6F3", surface:"rgba(255,255,255,0.97)", glass:"rgba(255,246,243,0.75)",
-  text:"#1A0A05", muted:"#9A7A68", inverse:"#FFF6F3",
-  rose:"#D4526A", roseSoft:"#FDE8ED", roseBd:"rgba(212,82,106,0.2)", roseGlow:"rgba(212,82,106,0.15)",
-  accent:"#C4522A", accentSoft:"#FAE8DF", accentBd:"rgba(196,82,42,0.2)",
-  gold:"#D4922A", goldSoft:"#FDF3E0", goldBd:"rgba(212,146,42,0.25)",
-  sage:"#6B8F71", sageSoft:"#EEF4EF", sageBd:"rgba(107,143,113,0.25)",
-  purple:"#8B6BAD", purpleSoft:"#F3EFFC", purpleBd:"rgba(139,107,173,0.25)",
-  border:"rgba(212,82,106,0.10)", borderSoft:"rgba(212,82,106,0.06)",
-  gradHero:"linear-gradient(145deg,#FFB3B3 0%,#FFCDB8 40%,#FFE8D6 100%)",
-  gradHome:"linear-gradient(180deg,#FFD6D6 0%,#FFF0EC 50%,#FFF6F3 100%)",
-  gradPlay:"linear-gradient(180deg,#FFD0E8 0%,#FFF0F8 50%,#FFF6F3 100%)",
-  gradUs:"linear-gradient(180deg,#FFE0C8 0%,#FFF5EE 50%,#FFF6F3 100%)",
-  gradProfile:"linear-gradient(180deg,#E8D0FF 0%,#F8F0FF 50%,#FFF6F3 100%)",
-  gradCard:"linear-gradient(135deg,rgba(255,255,255,0.99) 0%,rgba(255,246,243,0.94) 100%)",
-  gradDark:"linear-gradient(145deg,#2A0F08 0%,#1A0A05 100%)",
-  gradRose:"linear-gradient(135deg,#F093A0 0%,#D4526A 100%)",
-  gradGold:"linear-gradient(135deg,#F0C060 0%,#D4922A 100%)",
-  gradSage:"linear-gradient(135deg,#90C498 0%,#6B8F71 100%)",
-  gradPeach:"linear-gradient(135deg,#FFB3A0 0%,#FF8C78 100%)",
-  gradWarm:"linear-gradient(135deg,#FFD6C8 0%,#FFBBA8 100%)",
-};
-
-const SHADOWS = {
-  sm:"0 2px 8px rgba(212,82,106,0.08),0 1px 3px rgba(212,82,106,0.05)",
-  md:"0 8px 24px rgba(212,82,106,0.10),0 2px 8px rgba(212,82,106,0.06)",
-  lg:"0 20px 48px rgba(212,82,106,0.14),0 8px 20px rgba(212,82,106,0.08)",
-  xl:"0 32px 64px rgba(212,82,106,0.18),0 12px 28px rgba(212,82,106,0.10)",
-};
-
-const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Lato:wght@300;400;600;700&display=swap');
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-  html{scroll-behavior:smooth;}
-  body{background:#FFF6F3;font-family:${LT};color:#1A0A05;-webkit-font-smoothing:antialiased;}
-body::before{content:'';position:fixed;inset:0;background:url('/images/bg.jpg') center/cover no-repeat;opacity:0.07;pointer-events:none;z-index:0;}
-  @keyframes fadeRise{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
-  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-  @keyframes hbBeat{0%,100%{transform:scale(1)}30%{transform:scale(1.22)}65%{transform:scale(1.06)}}
-  @keyframes hbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-  @keyframes hbSpin{to{transform:rotate(360deg)}}
-  @keyframes hbRing1{0%{transform:scale(1);opacity:0.5}100%{transform:scale(2.2);opacity:0}}
-  @keyframes hbRing2{0%{transform:scale(1);opacity:0.35}100%{transform:scale(2.8);opacity:0}}
-  @keyframes slowPulse{0%,100%{box-shadow:0 0 0 0 rgba(212,82,106,0.4)}60%{box-shadow:0 0 0 18px rgba(212,82,106,0)}}
-  @keyframes fastPulse{0%,100%{box-shadow:0 0 0 0 rgba(212,82,106,0.6);transform:scale(1)}50%{box-shadow:0 0 0 22px rgba(212,82,106,0);transform:scale(1.10)}}
-  @keyframes heartFloat{0%,100%{transform:scale(1) translateY(0)}50%{transform:scale(1.08) translateY(-4px)}}
-  @keyframes slideIn{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
-  @keyframes stagger1{0%{opacity:0;transform:translateY(16px)}100%{opacity:1;transform:none}}
-  @keyframes shake{0%,100%{transform:translateX(0)}10%,50%,90%{transform:translateX(-4px)}30%,70%{transform:translateX(4px)}}
-  @keyframes hbPartnerPulse{0%{transform:scale(1);box-shadow:0 0 0 0 rgba(212,146,42,0.7)}50%{transform:scale(1.18);box-shadow:0 0 0 28px rgba(212,146,42,0)}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(212,146,42,0)}}
-  @keyframes hbGoldGlow{0%,100%{box-shadow:0 10px 32px rgba(212,146,42,0.55),0 0 0 0 rgba(212,146,42,0.4)}50%{box-shadow:0 10px 48px rgba(212,146,42,0.9),0 0 0 20px rgba(212,146,42,0)}}
-  @keyframes hbHeartPop{0%{transform:scale(1)}20%{transform:scale(1.35)}40%{transform:scale(0.9)}60%{transform:scale(1.15)}80%{transform:scale(0.97)}100%{transform:scale(1)}}
-  .hb-partner-pulse{animation:hbPartnerPulse 0.7s ease-out!important;}
-  .hb-gold-glow{animation:hbGoldGlow 1.8s ease-in-out infinite;}
-  .hb-heart-pop{animation:hbHeartPop 0.5s cubic-bezier(0.22,1,0.36,1)!important;}
-
-  .fade-rise{animation:fadeRise 0.45s cubic-bezier(0.22,1,0.36,1) both;}
-  .fade-in{animation:fadeIn 0.35s ease both;}
-  .hb-float{animation:hbFloat 3.8s ease-in-out infinite;}
-  .hb-beat{animation:hbBeat 0.5s ease-in-out;}
-  .hb-spin{animation:hbSpin 1.4s linear infinite;}
-  .hb-slow{animation:slowPulse 2.4s ease-in-out infinite;}
-  .hb-fast{animation:fastPulse 0.45s ease-in-out infinite;}
-  .heart-float{animation:heartFloat 2.2s ease-in-out infinite;}
-  .slide-in{animation:slideIn 0.4s cubic-bezier(0.22,1,0.36,1) both;}
-
-  .card-hover{transition:transform 0.22s cubic-bezier(0.22,1,0.36,1),box-shadow 0.22s ease;}
-  .card-hover:hover{transform:translateY(-3px);}
-  .card-hover:active{transform:scale(0.97);}
-
-  .s1{animation:fadeRise 0.4s 0.05s both;}
-  .s2{animation:fadeRise 0.4s 0.12s both;}
-  .s3{animation:fadeRise 0.4s 0.19s both;}
-  .s4{animation:fadeRise 0.4s 0.26s both;}
-  .s5{animation:fadeRise 0.4s 0.33s both;}
-  .s6{animation:fadeRise 0.4s 0.40s both;}
-
-  ::-webkit-scrollbar{width:0;height:0;}
-  input,textarea,select{font-family:${LT};}
-`;
-
 // ── PRIMITIVE COMPONENTS ───────────────────────────────────────────────────
 function Field({label,textarea,select,children,style:es,...p}){
   const [f,setF]=useState(false);
@@ -293,70 +133,14 @@ function Field({label,textarea,select,children,style:es,...p}){
   );
 }
 
-function Btn({children,variant="fill",style:s,disabled,onClick,small}){
-  const v={
-    fill:{background:C.gradRose,color:"#fff",border:"none",boxShadow:SHADOWS.md},
-    gold:{background:C.gradGold,color:"#fff",border:"none",boxShadow:SHADOWS.md},
-    sage:{background:C.gradSage,color:"#fff",border:"none",boxShadow:SHADOWS.md},
-    dark:{background:C.gradDark,color:"#FAF0E8",border:"none",boxShadow:SHADOWS.lg},
-    outline:{background:"transparent",color:C.rose,border:`1.5px solid ${C.rose}`,boxShadow:"none"},
-    ghost:{background:"rgba(255,255,255,0.65)",color:C.muted,border:`1px solid ${C.border}`,boxShadow:SHADOWS.sm},
-    glass:{background:"rgba(255,255,255,0.55)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",color:C.text,border:"1px solid rgba(255,255,255,0.75)",boxShadow:SHADOWS.sm},
-  };
-  return (
-    <button disabled={disabled} onClick={onClick} className="card-hover" style={{display:"block",width:"100%",borderRadius:18,padding:small?"10px 18px":"15px 24px",fontFamily:LT,fontSize:small?13:15,fontWeight:700,letterSpacing:"0.04em",cursor:disabled?"not-allowed":"pointer",transition:"all 0.2s",opacity:disabled?0.45:1,...v[variant],...s}}>{children}</button>
-  );
-}
-
-function Card({children,style:s,glass,elevated,gradient,onClick,layer}){
-  return (
-    <div onClick={onClick} className={onClick?"card-hover":""} style={{background:gradient||C.gradCard,backdropFilter:glass?"blur(20px)":"none",WebkitBackdropFilter:glass?"blur(20px)":"none",borderRadius:20,padding:22,border:glass?"1px solid rgba(255,255,255,0.6)":"1px solid rgba(255,255,255,0.92)",boxShadow:elevated?SHADOWS.lg:SHADOWS.md,marginBottom:14,position:"relative",overflow:layer?"hidden":"visible",cursor:onClick?"pointer":"default",...s}}>
-      {layer&&<div style={{position:"absolute",inset:0,background:"linear-gradient(135deg,rgba(255,255,255,0.18) 0%,rgba(255,255,255,0) 100%)",pointerEvents:"none",borderRadius:20,zIndex:1}}/>}
-      <div style={{position:"relative",zIndex:2}}>{children}</div>
-    </div>
-  );
-}
-
 function Avatar({name,photo,size=48,gradient=C.gradRose}){
   return photo
     ?<img src={photo} alt={name} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",flexShrink:0,border:"3px solid rgba(255,255,255,0.9)",boxShadow:SHADOWS.md}}/>
     :<div style={{width:size,height:size,borderRadius:"50%",background:gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.34,fontWeight:700,color:"#fff",flexShrink:0,border:"3px solid rgba(255,255,255,0.9)",boxShadow:SHADOWS.md,fontFamily:LT}}>{initials(name)}</div>;
 }
 
-function BackBtn({onClick}){
-  return (
-    <button onClick={onClick} style={{background:"rgba(255,255,255,0.75)",border:"1px solid rgba(255,255,255,0.92)",borderRadius:14,cursor:"pointer",padding:"9px 11px",lineHeight:1,boxShadow:SHADOWS.sm,backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",display:"flex",alignItems:"center",transition:"all 0.2s"}}
-      onMouseEnter={e=>e.currentTarget.style.boxShadow=SHADOWS.md}
-      onMouseLeave={e=>e.currentTarget.style.boxShadow=SHADOWS.sm}>
-      <ArrowLeft size={20} color={C.text}/>
-    </button>
-  );
-}
-
-function Spinner({text="One moment..."}){
-  return (
-    <div style={{textAlign:"center",padding:"48px 0",color:C.muted}}>
-      <div style={{display:"inline-block",marginBottom:14}} className="hb-spin"><Sparkle size={32} color={C.rose}/></div>
-      <div style={{fontSize:14,fontFamily:LT}}>{text}</div>
-    </div>
-  );
-}
-
 function ErrBox({msg}){
   return msg?<div style={{background:"rgba(212,82,106,0.07)",border:"1px solid rgba(212,82,106,0.22)",borderRadius:14,padding:"12px 16px",marginBottom:16,fontSize:13,color:C.rose,fontFamily:LT,display:"flex",alignItems:"center",gap:10}}><X size={16} color={C.rose}/>{msg}</div>:null;
-}
-
-function Hdr({title,sub,back,right}){
-  return (
-    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:26}}>
-      <BackBtn onClick={back}/>
-      <div style={{flex:1}}>
-        <h2 style={{fontFamily:PF,fontSize:22,fontWeight:400,fontStyle:"italic",color:C.text,lineHeight:1.2}}>{title}</h2>
-        {sub&&<div style={{fontSize:12,color:C.muted,fontFamily:LT,marginTop:3}}>{sub}</div>}
-      </div>
-      {right}
-    </div>
-  );
 }
 
 function PhotoUpload({current,onUpload,size=80}){
@@ -372,14 +156,6 @@ function PhotoUpload({current,onUpload,size=80}){
       <input ref={ref} type="file" accept="image/*" onChange={handle} style={{display:"none"}}/>
     </div>
   );
-}
-
-function GradOrb({size=320,top=-80,color1="rgba(255,150,130,0.35)",color2="rgba(255,200,180,0.12)"}){
-  return <div style={{position:"absolute",top,left:"50%",transform:"translateX(-50%)",width:size,height:size,borderRadius:"50%",background:`radial-gradient(circle,${color1} 0%,${color2} 60%,transparent 100%)`,filter:"blur(40px)",pointerEvents:"none",zIndex:0}}/>;
-}
-
-function ScreenWrap({gradient,children,pb}){
-  return <div style={{minHeight:"100vh",background:gradient||C.gradHome,paddingBottom:pb||100}}>{children}</div>;
 }
 
 // ── PREMIUM LOCK ───────────────────────────────────────────────────────────
@@ -501,10 +277,9 @@ function UpgradeSheet({onClose, roomId}) {
   const FEATURES = [
     {emoji:"🔥", text:"Desire game — unlimited rounds"},
     {emoji:"🎭", text:"Truth or Dare spicy mode"},
-    {emoji:"✨", text:"AI-generated questions that learn from you"},
     {emoji:"🎨", text:"Pictionary — real-time drawing game"},
     {emoji:"📖", text:"Full Q&A & Desire history"},
-    {emoji:"🗓️", text:"Unlimited AI date & outfit planning"},
+    {emoji:"🗓️", text:"Unlimited date & outfit planning"},
   ];
 
   return (
@@ -1857,75 +1632,21 @@ const PLATFORMS = [
 // ── DATE PLANNER SCREEN ────────────────────────────────────────────
 function DatePlannerScreen({me,partner,userKey,roomData,update,addN,back}){
   const pk=userKey==="A"?"B":"A";
-  const [step,setStep]=useState("format"); // format|vibe|city|generating|result|history
+  const [step,setStep]=useState("format"); // format|vibe|city|result|history
   const [format,setFormat]=useState(""); // inperson|virtual
   const [vibe,setVibe]=useState("");
   const [city,setCity]=useState(roomData?.distance?.split("↔")?.[0]?.trim()||"");
   const [plan,setPlan]=useState(null);
-  const [loading,setLoading]=useState(false);
   const [savedPlans,setSavedPlans]=useState(roomData?.datePlans||[]);
   const [scheduledDate,setScheduledDate]=useState("");
   const [saving,setSaving]=useState(false);
 
   useEffect(()=>{setSavedPlans(roomData?.datePlans||[]);},[roomData?.datePlans]);
 
-  const generate=async()=>{
-    setStep("generating"); setLoading(true);
-    try{
-      const system=`You are a romantic date planner for couples. Generate creative, specific, and thoughtful date plans. For in-person dates, suggest real types of venues with specific neighbourhood areas and timing. For virtual dates, create a structured evening with specific activities. Always format your response as valid JSON only with no markdown backticks.`;
-
-      const pastPlans=savedPlans.slice(0,5).map(p=>p.title).join(", ");
-      const avoidStr=pastPlans?`Avoid repeating these past date ideas: ${pastPlans}.`:"";
-
-      const prompt=format==="inperson"
-        ?`Create a ${vibe} in-person date plan for a couple in ${city||"their city"}. ${avoidStr}
-Return ONLY this JSON structure:
-{
-  "title": "short romantic title",
-  "format": "inperson",
-  "vibe": "${vibe}",
-  "city": "${city}",
-  "description": "one warm sentence about this date",
-  "stops": [
-    {
-      "time": "7:00 PM",
-      "place": "specific place name or type",
-      "area": "neighbourhood or area of city",
-      "description": "one line about this stop",
-      "mapsQuery": "search term for google maps"
-    }
-  ],
-  "tips": "one practical tip for this date"
-}`
-        :`Create a ${vibe} virtual date plan for a long-distance couple. ${avoidStr}
-Return ONLY this JSON structure:
-{
-  "title": "short romantic title",
-  "format": "virtual",
-  "vibe": "${vibe}",
-  "description": "one warm sentence about this date",
-  "stops": [
-    {
-      "time": "8:00 PM",
-      "activity": "specific activity name",
-      "platform": "tool or platform to use",
-      "description": "one line about this activity",
-      "link": "https://relevant-platform-url.com"
-    }
-  ],
-  "tips": "one practical tip for this virtual date"
-}`;
-
-      const raw=await callClaude(system,prompt);
-      const m=raw.match(/\{[\s\S]*\}/);
-      const parsed=JSON.parse(m?m[0]:raw);
-      setPlan(parsed);
-      setStep("result");
-    }catch(e){
-      console.error(e);
-      setStep("vibe");
-    }
-    setLoading(false);
+  const generate=()=>{
+    const tpl=getDateTemplate(format,vibe);
+    setPlan({...tpl,format,vibe,city:format==="inperson"?city.trim():""});
+    setStep("result");
   };
 
   const savePlan=async()=>{
@@ -2035,7 +1756,7 @@ Return ONLY this JSON structure:
             <div className="fade-rise">
               <div style={{marginBottom:24}}>
                 <h3 style={{fontFamily:PF,fontSize:24,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:8}}>What's the vibe?</h3>
-                <p style={{fontSize:14,color:C.muted,fontFamily:LT}}>Pick one — Claude will shape the whole plan around it.</p>
+                <p style={{fontSize:14,color:C.muted,fontFamily:LT}}>Pick one and we'll shape the whole plan around it.</p>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:24}}>
                 {DATE_VIBES.map(v=>(
@@ -2054,20 +1775,6 @@ Return ONLY this JSON structure:
                 <Btn variant="ghost" onClick={()=>setStep("format")}>← Back</Btn>
                 <Btn disabled={!vibe||(format==="inperson"&&!city.trim())} onClick={generate} style={{background:gradCard,border:"none",color:"#fff",boxShadow:SHADOWS.lg}}>Plan this date →</Btn>
               </div>
-            </div>
-          )}
-
-          {/* STEP — GENERATING */}
-          {step==="generating"&&(
-            <div className="fade-rise" style={{textAlign:"center",padding:"48px 0"}}>
-              <div style={{position:"relative",display:"inline-block",marginBottom:28}}>
-                <div style={{position:"absolute",inset:-20,borderRadius:"50%",border:`2px solid rgba(232,93,38,0.25)`,animation:"hbRing1 2.5s ease-out infinite"}}/>
-                <div style={{width:90,height:90,borderRadius:"50%",background:gradCard,display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:SHADOWS.xl}}>
-                  <CalendarHeart size={44} color="#fff" weight="fill" className="hb-spin"/>
-                </div>
-              </div>
-              <h3 style={{fontFamily:PF,fontSize:24,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:10}}>Planning your date...</h3>
-              <p style={{fontSize:14,color:C.muted,fontFamily:LT,lineHeight:1.7}}>Finding the perfect places<br/>and crafting your evening.</p>
             </div>
           )}
 
@@ -2272,7 +1979,6 @@ function OutfitPlannerScreen({me,partner,userKey,roomData,update,addN,back}){
   const [occasion,setOccasion]=useState("");
   const [vibe,setVibe]=useState("");
   const [note,setNote]=useState("");
-  const [loading,setLoading]=useState(false);
   const [result,setResult]=useState(null);
   const [partnerNote,setPartnerNote]=useState("");
 
@@ -2280,26 +1986,8 @@ function OutfitPlannerScreen({me,partner,userKey,roomData,update,addN,back}){
   const pendingForMe=outfitCards.filter(c=>c.for===userKey&&!c.seen);
   const myCards=outfitCards.filter(c=>c.by===userKey);
 
-  const generate=async()=>{
-    setLoading(true);
-    try{
-      const target=mode==="forme"?me?.name:partner?.name;
-      const system="You are a thoughtful personal stylist. Generate specific, wearable outfit suggestions with colour palettes, key pieces, and styling notes. Be warm and personal. Return only JSON.";
-      const prompt=`Generate a ${vibe} outfit suggestion for ${target} for a ${occasion} occasion.${note?` Special note: ${note}`:""}
-Return ONLY this JSON:
-{
-  "title": "outfit name",
-  "keyPieces": ["piece 1", "piece 2", "piece 3"],
-  "colours": ["colour 1", "colour 2"],
-  "styling": "2-3 sentences of styling advice",
-  "avoid": "one thing to avoid",
-  "mood": "one word mood of this outfit"
-}`;
-      const raw=await callClaude(system,prompt);
-      const m=raw.match(/\{[\s\S]*\}/);
-      setResult(JSON.parse(m?m[0]:raw));
-    }catch(e){console.error(e);}
-    setLoading(false);
+  const generate=()=>{
+    setResult(getOutfitLook(vibe,result?.title));
   };
 
   const sendToPartner=async()=>{
@@ -2311,27 +1999,9 @@ Return ONLY this JSON:
   };
 
   const requestChange=async(cardId,changeNote)=>{
-    setLoading(true);
-    try{
-      const card=outfitCards.find(c=>c.id===cardId);
-      const system="You are a personal stylist. Revise an outfit suggestion based on feedback. Return only JSON.";
-      const prompt=`Original outfit: ${JSON.stringify(card.result)}. Requested change: "${changeNote}". Generate a revised outfit keeping the original spirit but incorporating the change.
-Return ONLY this JSON:
-{
-  "title": "revised outfit name",
-  "keyPieces": ["piece 1", "piece 2", "piece 3"],
-  "colours": ["colour 1", "colour 2"],
-  "styling": "2-3 sentences of styling advice",
-  "avoid": "one thing to avoid",
-  "mood": "one word mood"
-}`;
-      const raw=await callClaude(system,prompt);
-      const m=raw.match(/\{[\s\S]*\}/);
-      const revised=JSON.parse(m?m[0]:raw);
-      const updated=outfitCards.map(c=>c.id===cardId?{...c,result:revised,revisions:[...c.revisions,{note:changeNote,ts:Date.now()}],seen:true}:c);
-      await update({outfitCards:updated});
-    }catch(e){console.error(e);}
-    setLoading(false);
+    const updated=outfitCards.map(c=>c.id===cardId?{...c,revisions:[...c.revisions,{note:changeNote,ts:Date.now()}],seen:true}:c);
+    await update({outfitCards:updated});
+    await addN("outfit",`${me?.name} asked for a change: "${changeNote}"`);
   };
 
   const gradOutfit="linear-gradient(135deg,#C084FC,#8B6BAD)";
@@ -2358,13 +2028,13 @@ Return ONLY this JSON:
                 <div style={{marginBottom:24}}>
                   <div style={{fontSize:11,fontWeight:700,color:outfitColor,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:12,fontFamily:LT}}>From {partner?.name} ✨</div>
                   {pendingForMe.map(card=>(
-                    <OutfitCard key={card.id} card={card} me={me} partner={partner} userKey={userKey} outfitColor={outfitColor} outfitBd={outfitBd} gradOutfit={gradOutfit} onRequestChange={requestChange} loading={loading}/>
+                    <OutfitCard key={card.id} card={card} me={me} partner={partner} userKey={userKey} outfitColor={outfitColor} outfitBd={outfitBd} gradOutfit={gradOutfit} onRequestChange={requestChange}/>
                   ))}
                 </div>
               )}
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
                 {[
-                  {key:"forme",icon:"✨",title:"Get outfit ideas",desc:"AI suggests an outfit for you"},
+                  {key:"forme",icon:"✨",title:"Get outfit ideas",desc:"Get a look for any occasion"},
                   {key:"forpartner",icon:"💌",title:`Suggest for ${partner?.name}`,desc:"Send your partner an outfit idea"},
                 ].map(m=>(
                   <button key={m.key} onClick={()=>setMode(m.key)} className="card-hover" style={{background:"rgba(255,255,255,0.95)",border:`1.5px solid ${outfitBd}`,borderRadius:20,padding:"20px 18px",cursor:"pointer",fontFamily:LT,textAlign:"left",boxShadow:SHADOWS.md,display:"flex",alignItems:"center",gap:16}}>
@@ -2377,7 +2047,7 @@ Return ONLY this JSON:
             </div>
           )}
 
-          {mode&&!result&&!loading&&(
+          {mode&&!result&&(
             <div className="fade-rise">
               <h3 style={{fontFamily:PF,fontSize:22,fontStyle:"italic",fontWeight:400,color:C.text,marginBottom:20}}>{mode==="forme"?"What are you dressing for?":`What should ${partner?.name} wear?`}</h3>
               <div style={{marginBottom:18}}>
@@ -2400,9 +2070,7 @@ Return ONLY this JSON:
             </div>
           )}
 
-          {loading&&<Spinner text="Styling your look..."/>}
-
-          {result&&!loading&&(
+          {result&&(
             <div className="fade-rise">
               <div style={{background:gradOutfit,borderRadius:24,padding:"24px 22px",marginBottom:20,boxShadow:SHADOWS.xl}}>
                 <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.7)",textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8,fontFamily:LT}}>{vibe} · {occasion}</div>
@@ -2431,7 +2099,7 @@ Return ONLY this JSON:
                 {result.avoid&&<div style={{fontSize:12,color:C.muted,fontFamily:LT,marginTop:10,fontStyle:"italic"}}>Avoid: {result.avoid}</div>}
               </Card>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <Btn variant="ghost" onClick={()=>setResult(null)}>Try again →</Btn>
+                <Btn variant="ghost" onClick={generate}>Another look →</Btn>
                 {mode==="forpartner"?<Btn onClick={sendToPartner} style={{background:gradOutfit,border:"none",color:"#fff"}}>Send to {partner?.name} →</Btn>:<Btn variant="ghost" onClick={()=>{setResult(null);setMode("");}}>Done</Btn>}
               </div>
             </div>
@@ -2443,7 +2111,7 @@ Return ONLY this JSON:
 }
 
 // ── OUTFIT CARD ────────────────────────────────────────────────────
-function OutfitCard({card,me,partner,userKey,outfitColor,outfitBd,gradOutfit,onRequestChange,loading}){
+function OutfitCard({card,me,partner,userKey,outfitColor,outfitBd,gradOutfit,onRequestChange}){
   const [expanded,setExpanded]=useState(true);
   const [changeNote,setChangeNote]=useState("");
   const [requesting,setRequesting]=useState(false);
@@ -2468,10 +2136,10 @@ function OutfitCard({card,me,partner,userKey,outfitColor,outfitBd,gradOutfit,onR
 ))}
         <div style={{fontSize:13,color:C.muted,fontFamily:LT,lineHeight:1.6,marginTop:10}}>{card.result.styling}</div>
         {card.note&&<div style={{fontSize:12,color:outfitColor,fontFamily:PF,fontStyle:"italic",marginTop:10}}>"{card.note}"</div>}
-        {card.revisions?.length>0&&<div style={{fontSize:11,color:C.muted,fontFamily:LT,marginTop:8}}>Revised {card.revisions.length} time{card.revisions.length>1?"s":""}</div>}
+        {card.revisions?.length>0&&<div style={{fontSize:11,color:C.muted,fontFamily:LT,marginTop:8}}>Change requested {card.revisions.length} time{card.revisions.length>1?"s":""}</div>}
         <div style={{marginTop:14}}>
           <Field placeholder="Request a change... e.g. try a warmer colour" value={changeNote} onChange={e=>setChangeNote(e.target.value)}/>
-          <Btn disabled={!changeNote.trim()||requesting||loading} onClick={handleChange} style={{background:gradOutfit,border:"none",color:"#fff",fontSize:13}}>{requesting?"Revising...":"Request this change →"}</Btn>
+          <Btn disabled={!changeNote.trim()||requesting} onClick={handleChange} style={{background:gradOutfit,border:"none",color:"#fff",fontSize:13}}>{requesting?"Sending...":"Request this change →"}</Btn>
         </div>
       </div>
     </div>
@@ -3162,14 +2830,13 @@ function QAHistory({me, partner, userKey, roomData, back}) {
     </ScreenWrap>
   );
 }
-function QAScreen({me, partner, userKey, roomData, update, addN, back, isPremium, onUpgrade}) {
+function QAScreen({me, partner, userKey, roomData, update, addN, back}) {
   const pk = userKey === "A" ? "B" : "A";
   const fk = `qa_${todayKey()}`;
   const qa = roomData?.[fk];
   const [ans, setAns] = useState(qa?.answers?.[userKey] || "");
   const [guess, setGuess] = useState(qa?.guesses?.[userKey] || "");
   const [showHistory, setShowHistory] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
 
   const phase = !qa?.question ? "gen"
     : !qa?.answers?.[userKey] ? "answer"
@@ -3234,21 +2901,6 @@ function QAScreen({me, partner, userKey, roomData, update, addN, back, isPremium
               <h3 style={{fontFamily: PF, fontSize: 24, fontStyle: "italic", fontWeight: 400, marginBottom: 10, color: C.text}}>Today's question awaits</h3>
               <p style={{color: C.muted, fontSize: 15, lineHeight: 1.75, marginBottom: 36, fontFamily: LT}}>A fresh question, just for you two.</p>
               <Btn onClick={generate}>Get today's question</Btn>
-              {isPremium && (
-                <button onClick={async () => {
-                  setAiLoading(true);
-                  try {
-                    const context = buildCoupleContext(me, partner, roomData, userKey);
-                    const system = `You are a thoughtful relationship question generator for couples. Generate one single intimate, specific question that will spark a meaningful conversation. The question should feel personal to THIS couple based on their history. Return only the question, no preamble, no quotes.`;
-                    const msg = `Generate a fresh daily question for this couple. Make it feel personal to them, referencing their situation where natural.\n\n${context}`;
-                    const q = await callClaude(system, msg);
-                    await update({[fk]: {question: q, answers: {}, guesses: {}, date: todayStr(), aiGenerated: true}});
-                  } catch(e) { console.error(e); }
-                  setAiLoading(false);
-                }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",borderRadius:18,padding:"13px 24px",fontFamily:LT,fontSize:14,fontWeight:700,background:"rgba(212,82,106,0.08)",border:`1px solid ${C.roseBd}`,cursor:"pointer",color:C.rose,marginTop:10}}>
-                  {aiLoading ? <><div className="hb-spin"><Sparkle size={16} color={C.rose}/></div> Generating...</> : <><Sparkle size={16} color={C.rose} weight="fill"/> Generate personalised question ✨</>}
-                </button>
-              )}
             </div>
           )}
 
@@ -3342,12 +2994,11 @@ function QAScreen({me, partner, userKey, roomData, update, addN, back, isPremium
   );
 }
 
-function WYRScreen({me,partner,userKey,roomData,update,addN,back,isPremium,onUpgrade}){
+function WYRScreen({me,partner,userKey,roomData,update,addN,back}){
   const pk=userKey==="A"?"B":"A";
   const fk=`wyr_${todayKey()}`;
   const wyr=roomData?.[fk];
 
-  const [wyrAiLoading, setWyrAiLoading] = useState(false);
 
   const generate=async()=>{
     const pair=getDailyWYR();
@@ -3374,22 +3025,6 @@ function WYRScreen({me,partner,userKey,roomData,update,addN,back,isPremium,onUpg
         </div>
         <p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>No obvious right answer — just interesting choices.</p>
         <Btn variant="gold" onClick={generate}>Get today's dilemma</Btn>
-        {isPremium && (
-          <button onClick={async () => {
-            setWyrAiLoading(true);
-            try {
-              const context = buildCoupleContext(me, partner, roomData, userKey);
-              const system = `Generate one Would You Rather pair for this couple. Return JSON only: {"a": "option a", "b": "option b"}. Make it personal and interesting based on their history.`;
-              const msg = `Generate a personalised Would You Rather for this couple.\n\n${context}`;
-              const raw = await callClaude(system, msg);
-              const pair = JSON.parse(raw.match(/\{[\s\S]*\}/)[0]);
-              await update({[fk]:{a:pair.a,b:pair.b,choices:{}}});
-            } catch(e) { console.error(e); }
-            setWyrAiLoading(false);
-          }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",borderRadius:18,padding:"13px 24px",fontFamily:LT,fontSize:14,fontWeight:700,background:"rgba(212,146,42,0.08)",border:`1px solid ${C.goldBd}`,cursor:"pointer",color:C.gold,marginTop:10}}>
-            {wyrAiLoading ? <><div className="hb-spin"><Sparkle size={16} color={C.gold}/></div> Generating...</> : <><Sparkle size={16} color={C.gold} weight="fill"/> Generate personalised dilemma ✨</>}
-          </button>
-        )}
       </div>):(<div className="fade-rise">
         <p style={{fontFamily:PF,fontSize:20,fontStyle:"italic",color:C.muted,textAlign:"center",marginBottom:24}}>Would you rather...</p>
         {opts.map(opt=>{ const chosen=mine===opt.key,pp=theirs===opt.key; return <button key={opt.key} onClick={()=>!mine&&choose(opt.key)} className="card-hover" style={{display:"block",width:"100%",background:chosen?opt.soft:"rgba(255,255,255,0.93)",border:`2px solid ${chosen?opt.color:"rgba(255,255,255,0.92)"}`,borderRadius:22,padding:22,textAlign:"left",cursor:mine?"default":"pointer",fontFamily:LT,marginBottom:14,boxShadow:chosen?SHADOWS.lg:SHADOWS.md}}><div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}><div style={{width:32,height:32,borderRadius:10,background:opt.grad,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:SHADOWS.sm,fontSize:10,fontWeight:700,color:"#fff",fontFamily:LT}}>{opt.label.split(" ")[1]}</div><div style={{fontSize:11,fontWeight:700,color:opt.color,textTransform:"uppercase",letterSpacing:"0.09em"}}>{opt.label}</div></div><div style={{fontFamily:PF,fontSize:19,fontStyle:"italic",color:C.text,lineHeight:1.55}}>{opt.text}</div>{both&&<div style={{marginTop:12,display:"flex",gap:8,flexWrap:"wrap"}}>{chosen&&<span style={{fontSize:11,fontWeight:700,color:opt.color,background:opt.soft,padding:"4px 10px",borderRadius:20,border:`1px solid ${opt.bd}`,fontFamily:LT}}>✓ {me?.name}</span>}{pp&&<span style={{fontSize:11,fontWeight:700,color:opt.color,background:opt.soft,padding:"4px 10px",borderRadius:20,border:`1px solid ${opt.bd}`,fontFamily:LT}}>✓ {partner?.name}</span>}</div>}</button>; })}
@@ -3401,12 +3036,11 @@ function WYRScreen({me,partner,userKey,roomData,update,addN,back,isPremium,onUpg
   );
 }
 
-function NHIE({me,partner,userKey,roomData,update,addN,back,isPremium,onUpgrade}){
+function NHIE({me,partner,userKey,roomData,update,addN,back}){
   const pk=userKey==="A"?"B":"A";
   const fk=`ninh_${todayKey()}`;
   const ninh=roomData?.[fk];
 
-  const [nhieAiLoading, setNhieAiLoading] = useState(false);
 
   const generate=async()=>{
     const statements=getNHIESet(false).map(t=>({text:t,A:null,B:null}));
@@ -3429,22 +3063,6 @@ function NHIE({me,partner,userKey,roomData,update,addN,back,isPremium,onUpgrade}
         <div style={{marginBottom:24,display:"inline-flex",alignItems:"center",justifyContent:"center",width:100,height:100,borderRadius:"50%",background:C.gradSage,boxShadow:SHADOWS.xl}}><HandPointing size={48} color="#fff" weight="fill"/></div>
         <p style={{color:C.muted,fontSize:15,lineHeight:1.75,marginBottom:36,fontFamily:LT}}>5 statements. Have or never?</p>
         <Btn variant="sage" onClick={generate}>Get statements</Btn>
-        {isPremium && (
-          <button onClick={async () => {
-            setNhieAiLoading(true);
-            try {
-              const context = buildCoupleContext(me, partner, roomData, userKey);
-              const system = `Generate 5 Never Have I Ever statements for this couple. Return a JSON array of strings only. Make them personal and interesting based on their history.`;
-              const msg = `Generate personalised Never Have I Ever statements for this couple.\n\n${context}`;
-              const raw = await callClaude(system, msg);
-              const stmts = JSON.parse(raw.match(/\[[\s\S]*\]/)[0]);
-              await update({[fk]:{statements: stmts.slice(0,5).map(t=>({text:t,A:null,B:null}))}});
-            } catch(e) { console.error(e); }
-            setNhieAiLoading(false);
-          }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",borderRadius:18,padding:"13px 24px",fontFamily:LT,fontSize:14,fontWeight:700,background:"rgba(107,143,113,0.08)",border:`1px solid ${C.sageBd}`,cursor:"pointer",color:C.sage,marginTop:10}}>
-            {nhieAiLoading ? <><div className="hb-spin"><Sparkle size={16} color={C.sage}/></div> Generating...</> : <><Sparkle size={16} color={C.sage} weight="fill"/> Generate personalised statements ✨</>}
-          </button>
-        )}
       </div>):(
       <div className="fade-rise">
         {ninh.statements.map((s,i)=><Card key={i} elevated style={{marginBottom:12}} className={`s${Math.min(i+1,6)}`}><div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:8,fontFamily:LT,display:"flex",alignItems:"center",gap:5}}><Star size={12} color={C.muted} weight="fill"/>Statement {i+1}</div><p style={{fontSize:14,color:C.text,marginBottom:14,lineHeight:1.55,fontFamily:LT}}>{s.text}</p>{!s[userKey]?(<div style={{display:"flex",gap:10}}><button onClick={()=>vote(i,"have")} className="card-hover" style={{flex:1,padding:"11px",borderRadius:14,border:"none",background:"linear-gradient(135deg,rgba(107,143,113,0.15),rgba(144,196,152,0.10))",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:C.sage,boxShadow:SHADOWS.sm}}>I have</button><button onClick={()=>vote(i,"never")} className="card-hover" style={{flex:1,padding:"11px",borderRadius:14,border:"none",background:"rgba(212,82,106,0.08)",cursor:"pointer",fontFamily:LT,fontSize:13,fontWeight:700,color:C.rose,boxShadow:SHADOWS.sm}}>Never</button></div>):(<div style={{display:"flex",flexWrap:"wrap",gap:8}}>{[[userKey,me?.name],[pk,partner?.name]].map(([key,name])=>s[key]?<span key={key} style={{fontSize:11,fontWeight:700,padding:"5px 12px",borderRadius:20,background:s[key]==="have"?C.sageSoft:C.roseSoft,color:s[key]==="have"?C.sage:C.rose,border:`1px solid ${s[key]==="have"?C.sageBd:C.roseBd}`,fontFamily:LT}}>{name}: {s[key]==="have"?"Have":"Never"}</span>:<span key={key} style={{fontSize:11,color:C.muted,fontStyle:"italic",fontFamily:LT}}>⏳ {name}...</span>)}</div>)}</Card>)}
@@ -3557,10 +3175,9 @@ function TeasePanelToD({userKey, partner, tordTeases, tordSpicy, update}) {
     </div>
   );
 }
-function TruthOrDare({me, partner, userKey, roomData, update, addN, back, isPremium, onUpgrade}) {
+function TruthOrDare({me, partner, userKey, roomData, update, addN, back}) {
   const tord = roomData?.tord;
   const [spicy, setSpicy] = useState(false);
-  const [todAiLoading, setTodAiLoading] = useState(false);
 
   const pick = async type => {
     const content = type === "truth" ? getTruthQuestion(spicy) : getDare(spicy);
@@ -3610,23 +3227,6 @@ function TruthOrDare({me, partner, userKey, roomData, update, addN, back, isPrem
                   <div style={{fontSize: 17, fontWeight: 700, color: spicy ? "#E8C0A0" : C.gold, fontFamily: PF, fontStyle: "italic"}}>Dare</div>
                 </button>
               </div>
-              {isPremium && (
-                <button onClick={async () => {
-                  setTodAiLoading(true);
-                  try {
-                    const context = buildCoupleContext(me, partner, roomData, userKey);
-                    const type = spicy ? "spicy truth" : "truth";
-                    const system = `Generate one ${type} question for this couple. Return only the question/dare, no preamble.`;
-                    const msg = `Generate a personalised truth question for this couple based on their history.\n\n${context}`;
-                    const content = await callClaude(system, msg);
-                    await update({tord: {type:"truth", content, done:false, spicy, teases:[], startedAt:Date.now(), aiGenerated:true}});
-                    await addN("tord", `${me?.name} got an AI truth ✨`);
-                  } catch(e) { console.error(e); }
-                  setTodAiLoading(false);
-                }} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%",borderRadius:18,padding:"13px 24px",fontFamily:LT,fontSize:14,fontWeight:700,background:spicy?"rgba(255,255,255,0.06)":"rgba(212,82,106,0.08)",border:`1px solid ${spicy?"rgba(255,255,255,0.12)":C.roseBd}`,cursor:"pointer",color:spicy?"#E8C0A0":C.rose,marginTop:14}}>
-                  {todAiLoading ? <><div className="hb-spin"><Sparkle size={16} color={spicy?"#E8C0A0":C.rose}/></div> Generating...</> : <><Sparkle size={16} color={spicy?"#E8C0A0":C.rose} weight="fill"/> AI personalised truth ✨</>}
-                </button>
-              )}
             </div>
           )}
 
