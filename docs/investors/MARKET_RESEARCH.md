@@ -41,6 +41,24 @@ Sourced figures behind the deck. Market-size estimates disagree by up to 3x, so 
   - **Agapé:** about US$2.5M raised.
 - **Thursday** (UK): closed its app around 2025 because of declining interest and moved to in-person events. A reminder that offline events matter.
 
+## Ads and affiliate (researched October 2026)
+
+- **Amazon Associates India:** apparel 7.5%, shoes and jewellery 7%, beauty 8%. Fees are paid on revenue net of returns and taxes, with a 24-hour cookie and a ₹1,000 minimum payout ([fee schedule](https://affiliate-program.amazon.in/help/operating/advertisingfees/)). Apps must be approved and can't load Amazon pages inside an in-app browser.
+- **Myntra:** no direct programme. Through [Cuelinks](https://www.cuelinks.com/campaigns/myntra-affiliate-program) it pays 7.5% on new users and 3.75% on existing ones, with a 1-day cookie.
+- **AJIO:** about 4.5–8% through networks. The rates vary by network.
+- **Flipkart Affiliate:** 8% on fashion and lifestyle, direct ([rates](https://affiliate.flipkart.com/commissions)).
+- **Nykaa's own programme:** a flat 8% ([rates](https://affiliate.nykaa.com/commission.html)).
+- **Conversion:** Indian fashion e-commerce converts about 1.2% of visits, and affiliate traffic typically 1–2% (2025 benchmarks; unverified).
+- **Order value:** about ₹1,400 on Myntra (estimate) and ₹4,504 on Nykaa Fashion (Q1 FY26).
+- **Ad rates, India:**
+  - **Web:** roughly ₹15–70 net per 1,000 impressions.
+  - **Rewarded video on Android:** about US$0.5–1 per 1,000 views.
+
+  These come mostly from developer reports and agency blogs (unverified), and are commonly cited at 8–12x below US rates.
+- **Ad policy:** dating is allowed on AdSense and AdMob ([publisher policies](https://support.google.com/adsense/answer/10502938)). Sexual content and compensated dating are not, and the publisher is responsible for what users post. Rewarded ads must be opt-in, with the reward stated before the ad plays and limited to in-app items ([AdMob](https://support.google.com/admob/answer/7313578)).
+- **Peers:** QuackQuack, TrulyMadly, Aisle and Tinder all show "Contains ads" on Play Store. TrulyMadly earned ₹53.3 L from ads against ₹1.95 Cr from paid services in FY18 ([Entrackr](https://entrackr.com/2019/01/trulymadly-turn-profitable-fy18)).
+- **Not found:** an Indian dating app that confirms using rewarded ads for extra likes.
+
 ## Not verified or not found
 
 - Official INR prices for Tinder and Bumble.
